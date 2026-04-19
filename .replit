@@ -18,3 +18,12 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+NEXTAUTH_SECRET = "90b3d34a7bfc3122bc9b7cbeb26eea06bf9df6a94be8303fcec69e8163a3fba7"
+
+[[ports]]
+localPort = 19344
+externalPort = 80
