@@ -25,5 +25,13 @@ timeoutMs = 20000
 NEXTAUTH_SECRET = "90b3d34a7bfc3122bc9b7cbeb26eea06bf9df6a94be8303fcec69e8163a3fba7"
 
 [[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
 localPort = 19344
 externalPort = 80
