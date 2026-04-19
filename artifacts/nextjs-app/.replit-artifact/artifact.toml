@@ -19,3 +19,4 @@ run = "pnpm --filter @workspace/nextjs-app run dev"
 
 [services.env]
 PORT = "5000"
+NEXTAUTH_URL = "http://localhost:19344/nextjs-app/api/auth"
