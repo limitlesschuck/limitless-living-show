@@ -1,0 +1,295 @@
+## Prompt 4
+
+Create the protected admin dashboard layout and main dashboard page with navigation sidebar.
+
+Step 1 — Create the admin route guard middleware.
+
+Create a new file at artifacts/nextjs-app/middleware.ts with the following contents:
+
+import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
+
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const isAdminRoute = req.nextUrl.pathname.startsWith("/admin");
+    const isLoginPage = req.nextUrl.pathname === "/admin/login";
+
+    if (isLoginPage) {
+      if (token) {
+        return NextResponse.redirect(new URL("/admin", req.url));
+      }
+      return NextResponse.next();
+    }
+
+    if (isAdminRoute && !token) {
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
+
+    if (isAdminRoute && token?.role === "viewer") {
+      const isReadOnly =
+        req.nextUrl.pathname === "/admin" ||
+        req.nextUrl.pathname.startsWith("/admin/episodes");
+      if (!isReadOnly) {
+        return NextResponse.redirect(new URL("/admin", req.url));
+      }
+    }
+
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: () => true,
+    },
+  }
+);
+
+export const config = {
+  matcher: ["/admin/:path*"],
+};
+
+
+Step 2 — Create the admin layout with sidebar navigation.
+
+Create a new file at artifacts/nextjs-app/app/admin/layout.tsx with the following contents:
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect("/admin/login");
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex">
+      <AdminSidebar user={session.user} />
+      <main className="flex-1 min-w-0 p-8">{children}</main>
+    </div>
+  );
+}
+
+
+Step 3 — Create the AdminSidebar component.
+
+Create a new file at artifacts/nextjs-app/components/admin/AdminSidebar.tsx with the following contents:
+
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+
+const navItems = [
+  { label: "Dashboard", href: "/admin" },
+  { label: "Episodes", href: "/admin/episodes" },
+  { label: "Leads", href: "/admin/leads" },
+  { label: "Assessment", href: "/admin/assessment" },
+  { label: "Coaches", href: "/admin/coaches" },
+  { label: "Affiliates", href: "/admin/affiliates" },
+  { label: "AI Content", href: "/admin/ai-content" },
+];
+
+interface Props {
+  user: {
+    name?: string | null;
+    email?: string | null;
+    role?: string | null;
+  };
+}
+
+export default function AdminSidebar({ user }: Props) {
+  const pathname = usePathname();
+
+  return (
+    <aside className="w-56 bg-white border-r border-gray-200 flex flex-col min-h-screen">
+      <div className="p-5 border-b border-gray-200">
+        <p className="text-sm font-semibold text-gray-900 truncate">
+          Limitless Living
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5">Admin</p>
+      </div>
+
+      <nav className="flex-1 p-3 space-y-0.5">
+        {navItems.map((item) => {
+          const isActive =
+            item.href === "/admin"
+              ? pathname === "/admin"
+              : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center px-3 py-2 rounded-lg text-sm transition-colors ${
+                isActive
+                  ? "bg-gray-900 text-white font-medium"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="p-3 border-t border-gray-200">
+        <div className="px-3 py-2 mb-1">
+          <p className="text-xs font-medium text-gray-900 truncate">
+            {user.name ?? user.email}
+          </p>
+          <p className="text-xs text-gray-500 capitalize">
+            {user.role?.replace("_", " ")}
+          </p>
+        </div>
+        <button
+          onClick={() => signOut({ callbackUrl: "/admin/login" })}
+          className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-colors"
+        >
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+
+Step 4 — Create the main admin dashboard page.
+
+Replace the entire contents of artifacts/nextjs-app/app/admin/page.tsx (create it if it does not exist) with:
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+async function getStats() {
+  const [episodes, leads, coaches, pendingEpisodes] = await Promise.all([
+    prisma.episode.count(),
+    prisma.lead.count(),
+    prisma.coach.count(),
+    prisma.episode.count({ where: { publishStatus: "approved" } }),
+  ]);
+  return { episodes, leads, coaches, pendingEpisodes };
+}
+
+export default async function AdminDashboardPage() {
+  const session = await getServerSession(authOptions);
+  const stats = await getStats();
+
+  return (
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Welcome back, {session?.user?.name ?? session?.user?.email}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4">
+        <StatCard label="Total episodes" value={stats.episodes} />
+        <StatCard label="Total leads" value={stats.leads} />
+        <StatCard label="Active coaches" value={stats.coaches} />
+        <StatCard
+          label="Ready to publish"
+          value={stats.pendingEpisodes}
+          highlight={stats.pendingEpisodes > 0}
+        />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">
+          Quick actions
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <QuickAction
+            href="/admin/episodes/new"
+            label="Add episode"
+            description="Manually enter episode details"
+          />
+          <QuickAction
+            href="/admin/episodes?filter=draft"
+            label="Review AI content"
+            description="Approve generated titles and descriptions"
+          />
+          <QuickAction
+            href="/admin/leads"
+            label="View leads"
+            description="See latest assessment submissions"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-5 ${
+        highlight
+          ? "bg-gray-900 border-gray-900 text-white"
+          : "bg-white border-gray-200"
+      }`}
+    >
+      <p
+        className={`text-3xl font-semibold ${
+          highlight ? "text-white" : "text-gray-900"
+        }`}
+      >
+        {value}
+      </p>
+      <p
+        className={`text-xs mt-1 ${
+          highlight ? "text-gray-300" : "text-gray-500"
+        }`}
+      >
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function QuickAction({
+  href,
+  label,
+  description,
+}: {
+  href: string;
+  label: string;
+  description: string;
+}) {
+  return (
+    
+      href={href}
+      className="block p-4 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+    >
+      <p className="text-sm font-medium text-gray-900">{label}</p>
+      <p className="text-xs text-gray-500 mt-0.5">{description}</p>
+    </a>
+  );
+}
+
+
+Verification: Confirm that:
+1. middleware.ts was created at the root of artifacts/nextjs-app/
+2. app/admin/layout.tsx was created
+3. components/admin/AdminSidebar.tsx was created
+4. app/admin/page.tsx was created
+5. Logging in at /admin/login with admin@limitlesslivingshow.com / admin123 redirects to /admin and shows the dashboard with stat cards and sidebar navigation
+6. The sidebar shows all 7 nav items and the signed-in user name and role
+7. TypeScript typecheck passes with zero errors
