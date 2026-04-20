@@ -370,15 +370,15 @@ export default function EpisodeDetailPage() {
                 placeholder="https://..."
               />
             </Field>
-            <Field label="Swipe copy">
-              <textarea
+            <Field label="Swipe copy URL">
+              <input
+                type="url"
                 value={form.swipeCopy}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, swipeCopy: e.target.value }))
                 }
-                rows={4}
                 className="input"
-                placeholder="Social/email swipe copy for the guest to share"
+                placeholder="https://..."
               />
             </Field>
             <Field label="Systeme.io contact ID">

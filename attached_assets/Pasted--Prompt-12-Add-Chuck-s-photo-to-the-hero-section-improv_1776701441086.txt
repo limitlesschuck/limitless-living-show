@@ -1,0 +1,672 @@
+## Prompt 12
+
+Add Chuck's photo to the hero section, improve the hero layout, add the episode number column to the admin episodes list, fix the swipe copy field, build the public episode detail page, and build the public episodes listing page.
+
+Step 1 — Copy Chuck's photo to the public folder.
+
+Create a new file at artifacts/nextjs-app/public/chuck-hero.jpg by running this command in the shell:
+
+cp /home/claude/chuck-hero.jpg /home/runner/workspace/artifacts/nextjs-app/public/chuck-hero.jpg
+
+Verify the file exists:
+ls -la artifacts/nextjs-app/public/
+
+
+Step 2 — Update the homepage hero to include Chuck's photo and improve layout.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Find this exact string:
+      {/* Hero section */}
+      <section className="bg-brand-purple relative overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 70% 50%, #F0A500 0%, transparent 60%)",
+          }}
+        />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 relative z-10">
+          <div className="max-w-2xl">
+            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">
+              The Limitless Living Show
+            </p>
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
+              Real stories of transformation and overcoming limits
+            </h1>
+            <p className="text-lg text-gray-300 mb-8">
+              Hosted by Chuck Anderson — conversations with coaches, authors,
+              and speakers who rebuilt their lives from the inside out.
+            </p>
+
+            {/* Assessment CTA */}
+            <div className="bg-white bg-opacity-10 border border-white border-opacity-20 rounded-2xl p-6 mb-8">
+              <p className="text-white font-semibold text-lg mb-1">
+                Going through a difficult time?
+              </p>
+              <p className="text-gray-300 text-sm mb-4">
+                Take our free 2-minute assessment and find your path forward.
+              </p>
+              <Link href="/assessment" className="btn-primary">
+                Take the free assessment →
+              </Link>
+            </div>
+
+            {/* Platform links */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs text-gray-400">Listen on</span>
+              {PLATFORMS.map((p) => (
+                
+                  key={p.name}
+                  href={p.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-white border border-white border-opacity-30 px-3 py-1.5 rounded-full hover:border-brand-gold hover:text-brand-gold transition-colors"
+                >
+                  {p.name}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+Replace it with:
+      {/* Hero section */}
+      <section className="bg-brand-purple relative overflow-hidden min-h-[560px]">
+        <div className="absolute inset-0 bg-brand-purple-dark opacity-40" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left — text content */}
+            <div>
+              <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">
+                The Limitless Living Show with Chuck Anderson
+              </p>
+              <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
+                Real stories of transformation and overcoming limits
+              </h1>
+              <p className="text-lg text-gray-300 mb-8">
+                Conversations with coaches, authors, and speakers who rebuilt
+                their lives from the inside out.
+              </p>
+
+              {/* Assessment CTA box */}
+              <div className="bg-white rounded-2xl p-6 mb-6 shadow-xl">
+                <p className="text-brand-purple font-bold text-lg mb-1">
+                  Going through a difficult time?
+                </p>
+                <p className="text-gray-500 text-sm mb-4">
+                  Take our free 2-minute assessment and find your path forward.
+                </p>
+                <Link href="/assessment" className="btn-primary w-full text-center block">
+                  Take the free assessment →
+                </Link>
+              </div>
+
+              {/* Platform links */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-gray-400">Listen on</span>
+                {PLATFORMS.map((p) => (
+                  
+                    key={p.name}
+                    href={p.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-white border-2 border-white border-opacity-40 px-4 py-2 rounded-full hover:border-brand-gold hover:text-brand-gold transition-colors"
+                  >
+                    {p.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Right — Chuck's photo */}
+            <div className="hidden lg:flex justify-center items-end">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-3xl bg-brand-gold opacity-20 blur-2xl scale-110" />
+                <img
+                  src="/nextjs-app/chuck-hero.jpg"
+                  alt="Chuck Anderson — host of the Limitless Living Show"
+                  className="relative rounded-3xl w-full max-w-sm object-cover shadow-2xl border-4 border-brand-gold border-opacity-30"
+                  style={{ maxHeight: "480px", objectPosition: "top" }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+Step 3 — Add episodeNumber to the admin episodes list API select query.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/route.ts
+
+Find this exact string:
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        guestName: true,
+        crisisCategory: true,
+        publishStatus: true,
+        captivatePublishedAt: true,
+        youtubeId: true,
+      },
+
+Replace it with:
+      select: {
+        id: true,
+        episodeNumber: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        guestName: true,
+        crisisCategory: true,
+        publishStatus: true,
+        captivatePublishedAt: true,
+        youtubeId: true,
+      },
+
+
+Step 4 — Add Ep# column to the admin episodes list page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/page.tsx
+
+Find this exact string:
+interface Episode {
+  id: string;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+  publishStatus: string;
+  captivatePublishedAt: string | null;
+  youtubeId: string | null;
+}
+
+Replace it with:
+interface Episode {
+  id: string;
+  episodeNumber: number | null;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+  publishStatus: string;
+  captivatePublishedAt: string | null;
+  youtubeId: string | null;
+}
+
+Find this exact string:
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">
+                  Episode
+                </th>
+
+Replace it with:
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3 hidden sm:table-cell w-16">
+                  Ep#
+                </th>
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">
+                  Episode
+                </th>
+
+Find this exact string:
+                <tr key={ep.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+
+Replace it with:
+                <tr key={ep.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span className="text-xs font-medium text-gray-400">
+                      {ep.episodeNumber ? `#${ep.episodeNumber}` : "—"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+
+
+Step 5 — Fix the swipe copy field from textarea to URL input.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+            <Field label="Swipe copy">
+              <textarea
+                value={form.swipeCopy}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, swipeCopy: e.target.value }))
+                }
+                rows={4}
+                className="input"
+                placeholder="Social/email swipe copy for the guest to share"
+              />
+            </Field>
+
+Replace it with:
+            <Field label="Swipe copy URL">
+              <input
+                type="url"
+                value={form.swipeCopy}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, swipeCopy: e.target.value }))
+                }
+                className="input"
+                placeholder="https://..."
+              />
+            </Field>
+
+
+Step 6 — Create the public episodes listing page.
+
+Create a new file at artifacts/nextjs-app/app/episodes/page.tsx with the following contents:
+
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship",
+  health: "Health & addiction",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  career: "Career & purpose",
+};
+
+const CATEGORIES = Object.entries(CATEGORY_LABELS);
+
+async function getEpisodes(category?: string) {
+  return prisma.episode.findMany({
+    where: {
+      publishStatus: "published",
+      ...(category ? { crisisCategory: category } : {}),
+    },
+    orderBy: { captivatePublishedAt: "desc" },
+    select: {
+      id: true,
+      episodeNumber: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      descriptionWebsite: true,
+      guestName: true,
+      crisisCategory: true,
+      thumbnailUrl: true,
+      youtubeId: true,
+      durationSeconds: true,
+      captivatePublishedAt: true,
+    },
+  });
+}
+
+function formatDuration(seconds: number | null) {
+  if (!seconds) return null;
+  return `${Math.floor(seconds / 60)} min`;
+}
+
+export default async function EpisodesPage({
+  searchParams,
+}: {
+  searchParams: { category?: string };
+}) {
+  const category = searchParams.category;
+  const episodes = await getEpisodes(category);
+
+  return (
+    <div className="min-h-screen bg-white">
+      <SiteHeader />
+
+      <div className="bg-brand-purple py-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <h1 className="text-3xl font-extrabold text-white mb-2">
+            All episodes
+          </h1>
+          <p className="text-gray-300 text-sm">
+            {episodes.length} episode{episodes.length !== 1 ? "s" : ""}
+            {category ? ` in ${CATEGORY_LABELS[category] ?? category}` : ""}
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        {/* Category filter */}
+        <div className="flex gap-2 flex-wrap mb-8">
+          <Link
+            href="/episodes"
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              !category
+                ? "bg-brand-purple text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            All
+          </Link>
+          {CATEGORIES.map(([value, label]) => (
+            <Link
+              key={value}
+              href={`/episodes?category=${value}`}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                category === value
+                  ? "bg-brand-purple text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        {episodes.length === 0 ? (
+          <div className="text-center py-24">
+            <p className="text-gray-500 text-sm mb-4">
+              No episodes found in this category yet.
+            </p>
+            <Link
+              href="/episodes"
+              className="text-sm text-brand-purple font-medium hover:underline"
+            >
+              View all episodes
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {episodes.map((ep) => {
+              const title = ep.titleYoutube ?? ep.titleOriginal;
+              const category = ep.crisisCategory
+                ? CATEGORY_LABELS[ep.crisisCategory]
+                : null;
+              const duration = formatDuration(ep.durationSeconds);
+
+              return (
+                <Link
+                  key={ep.id}
+                  href={`/episodes/${ep.id}`}
+                  className="group episode-card block"
+                >
+                  <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
+                    {ep.thumbnailUrl ? (
+                      <img
+                        src={ep.thumbnailUrl}
+                        alt={title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                        <span className="text-brand-gold text-2xl font-bold">
+                          LLS
+                        </span>
+                      </div>
+                    )}
+                    {category && (
+                      <span className="absolute top-2 left-2 text-xs font-semibold bg-brand-gold text-brand-purple-dark px-2 py-0.5 rounded-full">
+                        {category}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <h2 className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1 group-hover:text-brand-purple transition-colors">
+                      {title}
+                    </h2>
+                    {ep.guestName && (
+                      <p className="text-xs text-gray-500">
+                        with {ep.guestName}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                      {ep.episodeNumber && (
+                        <span>Ep. {ep.episodeNumber}</span>
+                      )}
+                      {duration && <span>{duration}</span>}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Assessment CTA */}
+        <div className="mt-16 bg-brand-purple rounded-2xl p-8 text-center">
+          <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-3">
+            Not sure where to start?
+          </p>
+          <h2 className="text-2xl font-bold text-white mb-3">
+            Find the episodes that are right for you
+          </h2>
+          <p className="text-gray-300 text-sm mb-6 max-w-md mx-auto">
+            Answer 4 quick questions and we&apos;ll match you with the right
+            episodes and resources for exactly what you&apos;re going through.
+          </p>
+          <Link href="/assessment" className="btn-primary">
+            Take the free assessment →
+          </Link>
+        </div>
+      </div>
+
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+
+Step 7 — Create the public episode detail page.
+
+Create a new file at artifacts/nextjs-app/app/episodes/[id]/page.tsx with the following contents:
+
+import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship & divorce",
+  health: "Health & addiction",
+  financial: "Financial hardship",
+  spiritual: "Spiritual awakening",
+  career: "Career & purpose",
+};
+
+const CTA_HEADLINES: Record<string, string> = {
+  grief: "Are you dealing with grief or loss?",
+  relationship: "Going through a relationship or divorce?",
+  health: "Struggling with health or addiction?",
+  financial: "Facing financial hardship?",
+  spiritual: "Experiencing a spiritual awakening?",
+  career: "Looking for purpose or a career change?",
+};
+
+async function getEpisode(id: string) {
+  return prisma.episode.findFirst({
+    where: { id, publishStatus: "published" },
+    include: { cta: true },
+  });
+}
+
+export default async function EpisodeDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const episode = await getEpisode(params.id);
+  if (!episode) notFound();
+
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const ctaHeadline = episode.crisisCategory
+    ? CTA_HEADLINES[episode.crisisCategory]
+    : "Ready to start your transformation?";
+
+  return (
+    <div className="min-h-screen bg-white">
+      <SiteHeader />
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-gray-400 mb-6">
+          <Link href="/" className="hover:text-brand-purple transition-colors">
+            Home
+          </Link>
+          <span>/</span>
+          <Link
+            href="/episodes"
+            className="hover:text-brand-purple transition-colors"
+          >
+            Episodes
+          </Link>
+          <span>/</span>
+          <span className="text-gray-600 line-clamp-1">{title}</span>
+        </div>
+
+        {/* Episode header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            {episode.episodeNumber && (
+              <span className="text-xs font-semibold text-gray-400">
+                Episode {episode.episodeNumber}
+              </span>
+            )}
+            {category && (
+              <span className="text-xs font-semibold bg-brand-gold text-brand-purple-dark px-3 py-1 rounded-full">
+                {category}
+              </span>
+            )}
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight mb-4">
+            {title}
+          </h1>
+          {episode.guestName && (
+            <p className="text-lg text-gray-500">
+              with{" "}
+              <span className="font-medium text-gray-700">
+                {episode.guestName}
+              </span>
+            </p>
+          )}
+        </div>
+
+        {/* YouTube embed or thumbnail */}
+        {episode.youtubeId ? (
+          <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-black">
+            <iframe
+              width="100%"
+              height="100%"
+              src={`https://www.youtube.com/embed/${episode.youtubeId}`}
+              title={title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="w-full h-full"
+            />
+          </div>
+        ) : episode.thumbnailUrl ? (
+          <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-brand-purple-dark">
+            <img
+              src={episode.thumbnailUrl}
+              alt={title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : null}
+
+        {/* Audio player */}
+        {episode.audioUrl && (
+          <div className="mb-8 bg-gray-50 rounded-xl p-4 border border-gray-100">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Listen to the episode
+            </p>
+            <audio controls className="w-full" src={episode.audioUrl}>
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        )}
+
+        {/* Assessment CTA */}
+        <div className="bg-brand-purple rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex-1">
+            <p className="text-white font-bold text-lg mb-1">{ctaHeadline}</p>
+            <p className="text-gray-300 text-sm">
+              Take our free assessment and find your path forward.
+            </p>
+          </div>
+          <Link
+            href="/assessment"
+            className="btn-primary whitespace-nowrap shrink-0"
+          >
+            Take the assessment →
+          </Link>
+        </div>
+
+        {/* Show notes */}
+        {(episode.descriptionWebsite ?? episode.descriptionOriginal) && (
+          <div className="prose prose-gray max-w-none mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              About this episode
+            </h2>
+            <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
+              {episode.descriptionWebsite ?? episode.descriptionOriginal}
+            </div>
+          </div>
+        )}
+
+        {/* Guest bio */}
+        {episode.guestBio && (
+          <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2">
+              About {episode.guestName ?? "the guest"}
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {episode.guestBio}
+            </p>
+          </div>
+        )}
+
+        {/* Bottom CTA */}
+        <div className="border-t border-gray-100 pt-8 text-center">
+          <p className="text-sm text-gray-500 mb-4">
+            Enjoyed this episode?{" "}
+            <Link
+              href="/episodes"
+              className="text-brand-purple font-medium hover:underline"
+            >
+              Browse all episodes →
+            </Link>
+          </p>
+        </div>
+      </div>
+
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+
+Verification: Confirm that:
+1. chuck-hero.jpg exists in artifacts/nextjs-app/public/
+2. The homepage hero now has a two-column layout with Chuck's photo on the right
+3. The assessment CTA box in the hero is now white with purple text
+4. The admin episodes list shows an Ep# column before the episode title
+5. The swipe copy field is now a URL input labeled Swipe copy URL
+6. app/episodes/page.tsx was created with category filter tabs
+7. app/episodes/[id]/page.tsx was created with YouTube embed, audio player, show notes, guest bio, and assessment CTA
+8. TypeScript typecheck passes with zero errors

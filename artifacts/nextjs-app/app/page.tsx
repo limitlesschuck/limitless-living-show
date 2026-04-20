@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import HeroPhoto from "@/components/HeroPhoto";
 
 const CATEGORY_LABELS: Record<string, string> = {
   grief: "Grief & loss",
@@ -188,55 +189,55 @@ export default async function HomePage() {
       <SiteHeader />
 
       {/* Hero section */}
-      <section className="bg-brand-purple relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 70% 50%, #F0A500 0%, transparent 60%)",
-          }}
-        />
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 relative z-10">
-          <div className="max-w-2xl">
-            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">
-              The Limitless Living Show
-            </p>
-            <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
-              Real stories of transformation and overcoming limits
-            </h1>
-            <p className="text-lg text-gray-300 mb-8">
-              Hosted by Chuck Anderson — conversations with coaches, authors,
-              and speakers who rebuilt their lives from the inside out.
-            </p>
+      <section className="bg-brand-purple relative overflow-hidden min-h-[560px]">
+        <div className="absolute inset-0 bg-brand-purple-dark opacity-40" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left — text content */}
+            <div>
+              <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">
+                The Limitless Living Show with Chuck Anderson
+              </p>
+              <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
+                Real stories of transformation and overcoming limits
+              </h1>
+              <p className="text-lg text-gray-300 mb-8">
+                Conversations with coaches, authors, and speakers who rebuilt
+                their lives from the inside out.
+              </p>
 
-            {/* Assessment CTA */}
-            <div className="bg-white bg-opacity-10 border border-white border-opacity-20 rounded-2xl p-6 mb-8">
-              <p className="text-white font-semibold text-lg mb-1">
-                Going through a difficult time?
-              </p>
-              <p className="text-gray-300 text-sm mb-4">
-                Take our free 2-minute assessment and find your path forward.
-              </p>
-              <Link href="/assessment" className="btn-primary">
-                Take the free assessment →
-              </Link>
+              {/* Assessment CTA box */}
+              <div className="bg-white rounded-2xl p-6 mb-6 shadow-xl">
+                <p className="text-brand-purple font-bold text-lg mb-1">
+                  Going through a difficult time?
+                </p>
+                <p className="text-gray-500 text-sm mb-4">
+                  Take our free 2-minute assessment and find your path forward.
+                </p>
+                <Link href="/assessment" className="btn-primary w-full text-center block">
+                  Take the free assessment →
+                </Link>
+              </div>
+
+              {/* Platform links */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-gray-400">Listen on</span>
+                {PLATFORMS.map((p) => (
+                  <a
+                    key={p.name}
+                    href={p.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-white border-2 border-white border-opacity-40 px-4 py-2 rounded-full hover:border-brand-gold hover:text-brand-gold transition-colors"
+                  >
+                    {p.name}
+                  </a>
+                ))}
+              </div>
             </div>
 
-            {/* Platform links */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-xs text-gray-400">Listen on</span>
-              {PLATFORMS.map((p) => (
-                <a
-                  key={p.name}
-                  href={p.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-medium text-white border border-white border-opacity-30 px-3 py-1.5 rounded-full hover:border-brand-gold hover:text-brand-gold transition-colors"
-                >
-                  {p.name}
-                </a>
-              ))}
-            </div>
+            {/* Right — Chuck's photo */}
+            <HeroPhoto />
           </div>
         </div>
       </section>

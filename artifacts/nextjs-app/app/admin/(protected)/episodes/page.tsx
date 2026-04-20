@@ -5,6 +5,7 @@ import Link from "next/link";
 
 interface Episode {
   id: string;
+  episodeNumber: number | null;
   titleOriginal: string;
   titleYoutube: string | null;
   guestName: string | null;
@@ -184,6 +185,9 @@ export default function EpisodesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3 hidden sm:table-cell w-16">
+                  Ep#
+                </th>
                 <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">
                   Episode
                 </th>
@@ -202,6 +206,11 @@ export default function EpisodesPage() {
             <tbody className="divide-y divide-gray-100">
               {episodes.map((ep) => (
                 <tr key={ep.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span className="text-xs font-medium text-gray-400">
+                      {ep.episodeNumber ? `#${ep.episodeNumber}` : "—"}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium text-gray-900 line-clamp-1">
                       {ep.titleYoutube ?? ep.titleOriginal}

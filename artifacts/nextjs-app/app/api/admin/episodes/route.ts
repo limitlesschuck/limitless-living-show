@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
       take: limit,
       select: {
         id: true,
+        episodeNumber: true,
         titleOriginal: true,
         titleYoutube: true,
         guestName: true,
