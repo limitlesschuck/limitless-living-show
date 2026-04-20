@@ -192,7 +192,7 @@ export default async function HomePage() {
       <section className="bg-brand-purple relative overflow-hidden min-h-[560px]">
         <div className="absolute inset-0 bg-brand-purple-dark opacity-40" />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-end">
             {/* Left — text content */}
             <div>
               <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">

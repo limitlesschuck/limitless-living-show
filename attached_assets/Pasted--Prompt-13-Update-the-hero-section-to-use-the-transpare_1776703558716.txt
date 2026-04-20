@@ -1,0 +1,45 @@
+## Prompt 13
+
+Update the hero section to use the transparent cutout image of Chuck positioned at the bottom of the right column.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Find this exact string:
+            {/* Right — Chuck's photo */}
+            <div className="hidden lg:flex justify-center items-end">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-3xl bg-brand-gold opacity-20 blur-2xl scale-110" />
+                <img
+                  src="/nextjs-app/chuck-hero.jpg"
+                  alt="Chuck Anderson — host of the Limitless Living Show"
+                  className="relative rounded-3xl w-full max-w-sm object-cover shadow-2xl border-4 border-brand-gold border-opacity-30"
+                  style={{ maxHeight: "480px", objectPosition: "top" }}
+                />
+              </div>
+            </div>
+
+Replace it with:
+            {/* Right — Chuck cutout */}
+            <div className="hidden lg:flex justify-end items-end self-end">
+              <img
+                src="/nextjs-app/chuck-hero.png"
+                alt="Chuck Anderson — host of the Limitless Living Show"
+                className="object-contain object-bottom"
+                style={{ height: "520px", width: "auto", marginBottom: "-1px" }}
+              />
+            </div>
+
+Also find this exact string:
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+Replace it with:
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-end">
+
+
+Verification: Confirm that:
+1. The hero now uses chuck-hero.png instead of chuck-hero.jpg
+2. The grid uses items-end so Chuck's figure aligns to the bottom
+3. The image has no rounded corners or border — transparent PNG displays cleanly
+4. TypeScript typecheck passes with zero errors
