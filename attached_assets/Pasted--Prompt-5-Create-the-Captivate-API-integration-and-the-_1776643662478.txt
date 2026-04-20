@@ -1,0 +1,412 @@
+## Prompt 5
+
+Create the Captivate API integration and the episodes list page in the admin dashboard.
+
+Step 1 — Create the Captivate API helper.
+
+Create a new file at artifacts/nextjs-app/lib/captivate.ts with the following contents:
+
+const CAPTIVATE_API_BASE = "https://api.captivate.fm";
+
+export interface CaptivateEpisode {
+  id: string;
+  title: string;
+  shownotes: string;
+  duration: number;
+  published_at: string;
+  media_url: string;
+  episode_art?: string;
+  status: string;
+}
+
+interface CaptivateAuthResponse {
+  token: {
+    access_token: string;
+  };
+}
+
+interface CaptivateEpisodesResponse {
+  episodes: CaptivateEpisode[];
+}
+
+async function getAccessToken(): Promise<string> {
+  const username = process.env.CAPTIVATE_USERNAME;
+  const apiKey = process.env.CAPTIVATE_API_KEY;
+
+  if (!username || !apiKey) {
+    throw new Error("CAPTIVATE_USERNAME or CAPTIVATE_API_KEY not set");
+  }
+
+  const res = await fetch(`${CAPTIVATE_API_BASE}/authenticate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, token: apiKey }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Captivate auth failed: ${res.status}`);
+  }
+
+  const data = (await res.json()) as CaptivateAuthResponse;
+  return data.token.access_token;
+}
+
+export async function fetchCaptivateEpisodes(
+  showId: string
+): Promise<CaptivateEpisode[]> {
+  const accessToken = await getAccessToken();
+
+  const res = await fetch(
+    `${CAPTIVATE_API_BASE}/shows/${showId}/episodes`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Captivate episodes fetch failed: ${res.status}`);
+  }
+
+  const data = (await res.json()) as CaptivateEpisodesResponse;
+  return data.episodes ?? [];
+}
+
+
+Step 2 — Create the episode ingestion API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/ingest/route.ts with the following contents:
+
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { fetchCaptivateEpisodes } from "@/lib/captivate";
+
+export async function POST() {
+  const session = await getServerSession(authOptions);
+
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const showId = process.env.CAPTIVATE_SHOW_ID;
+  if (!showId) {
+    return NextResponse.json(
+      { error: "CAPTIVATE_SHOW_ID not set" },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const episodes = await fetchCaptivateEpisodes(showId);
+    let created = 0;
+    let skipped = 0;
+
+    for (const ep of episodes) {
+      const existing = await prisma.episode.findUnique({
+        where: { captivateId: ep.id },
+      });
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      await prisma.episode.create({
+        data: {
+          captivateId: ep.id,
+          titleOriginal: ep.title,
+          descriptionOriginal: ep.shownotes ?? "",
+          audioUrl: ep.media_url,
+          thumbnailUrl: ep.episode_art ?? null,
+          durationSeconds: ep.duration ?? null,
+          captivatePublishedAt: ep.published_at
+            ? new Date(ep.published_at)
+            : null,
+          publishStatus: "draft",
+        },
+      });
+      created++;
+    }
+
+    return NextResponse.json({ created, skipped, total: episodes.length });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+
+Step 3 — Create the episodes list API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const filter = searchParams.get("filter");
+  const page = parseInt(searchParams.get("page") ?? "1");
+  const limit = 20;
+  const skip = (page - 1) * limit;
+
+  const where = filter ? { publishStatus: filter } : {};
+
+  const [episodes, total] = await Promise.all([
+    prisma.episode.findMany({
+      where,
+      orderBy: { captivatePublishedAt: "desc" },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        guestName: true,
+        crisisCategory: true,
+        publishStatus: true,
+        captivatePublishedAt: true,
+        youtubeId: true,
+      },
+    }),
+    prisma.episode.count({ where }),
+  ]);
+
+  return NextResponse.json({ episodes, total, page, limit });
+}
+
+
+Step 4 — Create the admin episodes list page.
+
+Create a new file at artifacts/nextjs-app/app/admin/(protected)/episodes/page.tsx with the following contents:
+
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+interface Episode {
+  id: string;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+  publishStatus: string;
+  captivatePublishedAt: string | null;
+  youtubeId: string | null;
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-600",
+  ai_generated: "bg-blue-50 text-blue-700",
+  approved: "bg-amber-50 text-amber-700",
+  published: "bg-green-50 text-green-700",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship",
+  health: "Health & addiction",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  career: "Career & purpose",
+};
+
+export default function EpisodesPage() {
+  const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [total, setTotal] = useState(0);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestResult, setIngestResult] = useState<string | null>(null);
+
+  async function loadEpisodes(status: string) {
+    setLoading(true);
+    const params = status ? `?filter=${status}` : "";
+    const res = await fetch(`/api/admin/episodes${params}`);
+    const data = await res.json();
+    setEpisodes(data.episodes ?? []);
+    setTotal(data.total ?? 0);
+    setLoading(false);
+  }
+
+  async function handleIngest() {
+    setIngesting(true);
+    setIngestResult(null);
+    try {
+      const res = await fetch("/api/admin/episodes/ingest", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.error) {
+        setIngestResult(`Error: ${data.error}`);
+      } else {
+        setIngestResult(
+          `Done — ${data.created} new episodes imported, ${data.skipped} already existed`
+        );
+        loadEpisodes(filter);
+      }
+    } catch {
+      setIngestResult("Error: Failed to connect to Captivate");
+    }
+    setIngesting(false);
+  }
+
+  useEffect(() => {
+    loadEpisodes(filter);
+  }, [filter]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Episodes</h1>
+          <p className="text-sm text-gray-500 mt-1">{total} total</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/episodes/new"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Add manually
+          </Link>
+          <button
+            onClick={handleIngest}
+            disabled={ingesting}
+            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {ingesting ? "Importing..." : "Import from Captivate"}
+          </button>
+        </div>
+      </div>
+
+      {ingestResult && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+          {ingestResult}
+        </div>
+      )}
+
+      <div className="mb-4 flex gap-2 flex-wrap">
+        {["", "draft", "ai_generated", "approved", "published"].map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+              filter === s
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+            }`}
+          >
+            {s === "" ? "All" : s.replace("_", " ")}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-sm text-gray-500">
+            Loading...
+          </div>
+        ) : episodes.length === 0 ? (
+          <div className="p-8 text-center text-sm text-gray-500">
+            No episodes found.{" "}
+            {filter === "" && "Use Import from Captivate to get started."}
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3">
+                  Episode
+                </th>
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3 hidden sm:table-cell">
+                  Category
+                </th>
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3 hidden md:table-cell">
+                  Status
+                </th>
+                <th className="text-left text-xs font-medium text-gray-500 px-4 py-3 hidden lg:table-cell">
+                  Published
+                </th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {episodes.map((ep) => (
+                <tr key={ep.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-medium text-gray-900 line-clamp-1">
+                      {ep.titleYoutube ?? ep.titleOriginal}
+                    </p>
+                    {ep.guestName && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {ep.guestName}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span className="text-xs text-gray-600">
+                      {ep.crisisCategory
+                        ? CATEGORY_LABELS[ep.crisisCategory] ?? ep.crisisCategory
+                        : "—"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        STATUS_STYLES[ep.publishStatus] ?? "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {ep.publishStatus.replace("_", " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className="text-xs text-gray-500">
+                      {ep.captivatePublishedAt
+                        ? new Date(ep.captivatePublishedAt).toLocaleDateString()
+                        : "—"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/admin/episodes/${ep.id}`}
+                      className="text-xs font-medium text-gray-900 hover:underline"
+                    >
+                      Edit
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+Step 5 — Add the Captivate secrets placeholder.
+
+In the Replit Secrets panel, add these three secrets (leave the values blank for now — they will be filled in when Captivate credentials are available):
+- CAPTIVATE_USERNAME
+- CAPTIVATE_API_KEY  
+- CAPTIVATE_SHOW_ID
+
+Verification: Confirm that:
+1. artifacts/nextjs-app/lib/captivate.ts was created
+2. artifacts/nextjs-app/app/api/admin/episodes/ingest/route.ts was created
+3. artifacts/nextjs-app/app/api/admin/episodes/route.ts was created
+4. artifacts/nextjs-app/app/admin/(protected)/episodes/page.tsx was created
+5. TypeScript typecheck passes with zero errors
+6. Navigating to /admin/episodes in the browser shows the episodes list page with the Import from Captivate button and filter tabs
