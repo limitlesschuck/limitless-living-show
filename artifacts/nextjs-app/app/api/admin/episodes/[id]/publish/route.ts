@@ -12,6 +12,10 @@ function buildPayload(episode: {
   episodeNumber: number | null;
   captivatePublishedAt: Date | null;
   guestName: string | null;
+  guestEmail: string | null;
+  affiliateLink: string | null;
+  swipeCopy: string | null;
+  systemeContactId: string | null;
   titleOriginal: string;
   titleYoutube: string | null;
   titlePodcast: string | null;
@@ -25,13 +29,24 @@ function buildPayload(episode: {
   tags: string[];
   crisisCategory: string | null;
 }) {
+  const epNum = episode.episodeNumber;
+  const paddedNum = epNum ? String(epNum).padStart(3, "0") : null;
+  const folderHint =
+    paddedNum && episode.guestName
+      ? `LLS-${paddedNum} ${episode.guestName}`
+      : null;
+
   return {
     episodeId: episode.id,
-    epNumber: episode.episodeNumber,
+    epNumber: epNum,
     pubDate: episode.captivatePublishedAt
       ? episode.captivatePublishedAt.toISOString().split("T")[0]
       : null,
     guestName: episode.guestName,
+    guestEmail: episode.guestEmail,
+    affiliateLink: episode.affiliateLink,
+    swipeCopy: episode.swipeCopy,
+    systemeContactId: episode.systemeContactId,
     title: episode.titleYoutube ?? episode.titleOriginal,
     titlePodcast: episode.titlePodcast,
     desc: episode.descriptionYoutube,
@@ -43,10 +58,10 @@ function buildPayload(episode: {
     showNotes: episode.descriptionWebsite,
     keywords: episode.tags.join(", "),
     mp4Url: episode.mp4Url,
+    mp4FolderHint: folderHint,
     audioUrl: episode.audioUrl,
     crisisCategory: episode.crisisCategory,
     ytUploaded: "Queued",
-    isTest: false,
   };
 }
 
@@ -60,7 +75,7 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}));
-  const isTest = body.test === true;
+  const publishMode = body.publish === true;
 
   const episode = await prisma.episode.findUnique({
     where: { id: params.id },
@@ -70,7 +85,7 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!isTest && episode.publishStatus !== "approved") {
+  if (publishMode && episode.publishStatus !== "approved") {
     return NextResponse.json(
       { error: "Episode must be in approved status before publishing" },
       { status: 400 }
@@ -78,7 +93,6 @@ export async function POST(
   }
 
   const payload = buildPayload(episode);
-  if (isTest) payload.isTest = true;
 
   let webhookResult: { ok: boolean; status: number; body: string };
   try {
@@ -98,14 +112,14 @@ export async function POST(
     data: {
       episodeId: episode.id,
       triggeredById: session.user.id,
-      platform: isTest ? "test" : "youtube",
+      platform: publishMode ? "youtube" : "make_sync",
       status: webhookResult.ok ? "success" : "failed",
       webhookPayload: payload as unknown as Prisma.InputJsonValue,
       responseBody: webhookResult as unknown as Prisma.InputJsonValue,
     },
   });
 
-  if (!isTest && webhookResult.ok) {
+  if (publishMode && webhookResult.ok) {
     await prisma.episode.update({
       where: { id: episode.id },
       data: { publishStatus: "published", publishedAt: new Date() },
@@ -114,13 +128,12 @@ export async function POST(
 
   return NextResponse.json({
     success: webhookResult.ok,
-    isTest,
     payload,
     webhookResponse: webhookResult,
     message: webhookResult.ok
-      ? isTest
-        ? "Test payload sent to Make.com — check your scenario for the received data"
-        : "Episode published — Make.com webhook fired successfully"
+      ? publishMode
+        ? "Episode published — Make.com webhook fired successfully"
+        : "Sent to Make.com successfully"
       : `Webhook failed: ${webhookResult.body}`,
   });
 }

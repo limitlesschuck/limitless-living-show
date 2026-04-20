@@ -78,6 +78,10 @@ model Episode {
   transcript            String?   @db.Text
   guestName             String?
   guestBio              String?   @db.Text
+  guestEmail            String?
+  affiliateLink         String?
+  swipeCopy             String?   @db.Text
+  systemeContactId      String?
   crisisCategory        String?
   tags                  String[]
   thumbnailUrl          String?

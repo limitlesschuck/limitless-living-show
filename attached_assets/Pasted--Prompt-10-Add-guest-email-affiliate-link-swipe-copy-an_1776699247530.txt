@@ -1,0 +1,519 @@
+## Prompt 10
+
+Add guest email, affiliate link, swipe copy, and Systeme.io contact ID fields to the episode record. Fix episode number ingestion from the RSS feed. Update the webhook payload to include all new fields. Rename the Send test button to Send to Make.com and remove the isTest distinction.
+
+Step 1 — Add four new fields to the Prisma schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+  guestName             String?
+  guestBio              String?   @db.Text
+
+Replace it with:
+  guestName             String?
+  guestBio              String?   @db.Text
+  guestEmail            String?
+  affiliateLink         String?
+  swipeCopy             String?   @db.Text
+  systemeContactId      String?
+
+After saving the file run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 2 — Fix episode number ingestion from the RSS feed.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/ingest/route.ts
+
+Find this exact string:
+      await prisma.episode.create({
+        data: {
+          captivateId: ep.id,
+          titleOriginal: ep.title,
+          descriptionOriginal: ep.description,
+          audioUrl: ep.audioUrl,
+          thumbnailUrl: ep.thumbnailUrl,
+          durationSeconds: ep.durationSeconds,
+          captivatePublishedAt: ep.publishedAt
+            ? new Date(ep.publishedAt)
+            : null,
+          guestName: extractGuestName(ep.title),
+          publishStatus: "draft",
+        },
+      });
+
+Replace it with:
+      await prisma.episode.create({
+        data: {
+          captivateId: ep.id,
+          titleOriginal: ep.title,
+          descriptionOriginal: ep.description,
+          audioUrl: ep.audioUrl,
+          thumbnailUrl: ep.thumbnailUrl,
+          durationSeconds: ep.durationSeconds,
+          episodeNumber: ep.episodeNumber,
+          captivatePublishedAt: ep.publishedAt
+            ? new Date(ep.publishedAt)
+            : null,
+          guestName: extractGuestName(ep.title),
+          publishStatus: "draft",
+        },
+      });
+
+
+Step 3 — Update the PATCH route to allow the four new fields.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/route.ts
+
+Find this exact string:
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "mp4Url",
+    "ctaId",
+  ];
+
+Replace it with:
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "guestEmail",
+    "affiliateLink",
+    "swipeCopy",
+    "systemeContactId",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "mp4Url",
+    "ctaId",
+  ];
+
+
+Step 4 — Update the publish route to include new fields in the webhook payload and remove isTest distinction.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/publish/route.ts
+
+Replace the entire contents of the file with:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+
+const MAKE_WEBHOOK_URL =
+  "https://hook.us2.make.com/026hpzp326lmlulqd6mx4asxfowkv4rf";
+
+function buildPayload(episode: {
+  id: string;
+  episodeNumber: number | null;
+  captivatePublishedAt: Date | null;
+  guestName: string | null;
+  guestEmail: string | null;
+  affiliateLink: string | null;
+  swipeCopy: string | null;
+  systemeContactId: string | null;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  titlePodcast: string | null;
+  descriptionYoutube: string | null;
+  descriptionWebsite: string | null;
+  descriptionOriginal: string | null;
+  captivateId: string | null;
+  thumbnailUrl: string | null;
+  audioUrl: string | null;
+  mp4Url: string | null;
+  tags: string[];
+  crisisCategory: string | null;
+}) {
+  const epNum = episode.episodeNumber;
+  const paddedNum = epNum ? String(epNum).padStart(3, "0") : null;
+  const folderHint =
+    paddedNum && episode.guestName
+      ? `LLS-${paddedNum} ${episode.guestName}`
+      : null;
+
+  return {
+    episodeId: episode.id,
+    epNumber: epNum,
+    pubDate: episode.captivatePublishedAt
+      ? episode.captivatePublishedAt.toISOString().split("T")[0]
+      : null,
+    guestName: episode.guestName,
+    guestEmail: episode.guestEmail,
+    affiliateLink: episode.affiliateLink,
+    swipeCopy: episode.swipeCopy,
+    systemeContactId: episode.systemeContactId,
+    title: episode.titleYoutube ?? episode.titleOriginal,
+    titlePodcast: episode.titlePodcast,
+    desc: episode.descriptionYoutube,
+    captivateId: episode.captivateId,
+    epUrl: episode.captivateId
+      ? `https://limitlesslivingpodcast.com/episode/${episode.captivateId}`
+      : null,
+    thumb: episode.thumbnailUrl,
+    showNotes: episode.descriptionWebsite,
+    keywords: episode.tags.join(", "),
+    mp4Url: episode.mp4Url,
+    mp4FolderHint: folderHint,
+    audioUrl: episode.audioUrl,
+    crisisCategory: episode.crisisCategory,
+    ytUploaded: "Queued",
+  };
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const publishMode = body.publish === true;
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (publishMode && episode.publishStatus !== "approved") {
+    return NextResponse.json(
+      { error: "Episode must be in approved status before publishing" },
+      { status: 400 }
+    );
+  }
+
+  const payload = buildPayload(episode);
+
+  let webhookResult: { ok: boolean; status: number; body: string };
+  try {
+    const res = await fetch(MAKE_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const responseBody = await res.text();
+    webhookResult = { ok: res.ok, status: res.status, body: responseBody };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    webhookResult = { ok: false, status: 0, body: message };
+  }
+
+  await prisma.publishLog.create({
+    data: {
+      episodeId: episode.id,
+      triggeredById: session.user.id,
+      platform: publishMode ? "youtube" : "make_sync",
+      status: webhookResult.ok ? "success" : "failed",
+      webhookPayload: payload as unknown as Prisma.InputJsonValue,
+      responseBody: webhookResult as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  if (publishMode && webhookResult.ok) {
+    await prisma.episode.update({
+      where: { id: episode.id },
+      data: { publishStatus: "published", publishedAt: new Date() },
+    });
+  }
+
+  return NextResponse.json({
+    success: webhookResult.ok,
+    payload,
+    webhookResponse: webhookResult,
+    message: webhookResult.ok
+      ? publishMode
+        ? "Episode published — Make.com webhook fired successfully"
+        : "Sent to Make.com successfully"
+      : `Webhook failed: ${webhookResult.body}`,
+  });
+}
+
+
+Step 5 — Update the episode detail page with new fields and renamed button.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  guestName: string | null;
+  guestBio: string | null;
+  crisisCategory: string | null;
+
+Replace it with:
+  guestName: string | null;
+  guestBio: string | null;
+  guestEmail: string | null;
+  affiliateLink: string | null;
+  swipeCopy: string | null;
+  systemeContactId: string | null;
+  episodeNumber: number | null;
+  crisisCategory: string | null;
+
+Find this exact string:
+    youtubeId: "",
+    mp4Url: "",
+  });
+
+Replace it with:
+    youtubeId: "",
+    mp4Url: "",
+    guestEmail: "",
+    affiliateLink: "",
+    swipeCopy: "",
+    systemeContactId: "",
+  });
+
+Find this exact string:
+      youtubeId: data.youtubeId ?? "",
+      mp4Url: data.mp4Url ?? "",
+    });
+
+Replace it with:
+      youtubeId: data.youtubeId ?? "",
+      mp4Url: data.mp4Url ?? "",
+      guestEmail: data.guestEmail ?? "",
+      affiliateLink: data.affiliateLink ?? "",
+      swipeCopy: data.swipeCopy ?? "",
+      systemeContactId: data.systemeContactId ?? "",
+    });
+
+Find this exact string:
+  async function handleTest() {
+    setTesting(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: true }),
+      }
+    );
+    const data = await res.json();
+    setMessage({
+      type: data.success ? "success" : "error",
+      text: data.message,
+    });
+    setTesting(false);
+  }
+
+Replace it with:
+  async function handleSendToMake() {
+    setTesting(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publish: false }),
+      }
+    );
+    const data = await res.json();
+    setMessage({
+      type: data.success ? "success" : "error",
+      text: data.message,
+    });
+    setTesting(false);
+  }
+
+Find this exact string:
+  async function handlePublish() {
+    setPublishing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: false }),
+      }
+    );
+
+Replace it with:
+  async function handlePublish() {
+    setPublishing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publish: true }),
+      }
+    );
+
+Find this exact string:
+          <Section title="Guest details">
+            <Field label="Guest name">
+              <input
+                type="text"
+                value={form.guestName}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, guestName: e.target.value }))
+                }
+                className="input"
+              />
+            </Field>
+            <Field label="Guest bio">
+              <textarea
+                value={form.guestBio}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, guestBio: e.target.value }))
+                }
+                rows={3}
+                className="input"
+                placeholder="Short bio shown on episode page"
+              />
+            </Field>
+          </Section>
+
+Replace it with:
+          <Section title="Guest details">
+            <Field label="Guest name">
+              <input
+                type="text"
+                value={form.guestName}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, guestName: e.target.value }))
+                }
+                className="input"
+              />
+            </Field>
+            <Field label="Guest email">
+              <input
+                type="email"
+                value={form.guestEmail}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, guestEmail: e.target.value }))
+                }
+                className="input"
+                placeholder="guest@example.com"
+              />
+            </Field>
+            <Field label="Guest bio">
+              <textarea
+                value={form.guestBio}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, guestBio: e.target.value }))
+                }
+                rows={3}
+                className="input"
+                placeholder="Short bio shown on episode page"
+              />
+            </Field>
+            <Field label="Affiliate link">
+              <input
+                type="text"
+                value={form.affiliateLink}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, affiliateLink: e.target.value }))
+                }
+                className="input"
+                placeholder="https://..."
+              />
+            </Field>
+            <Field label="Swipe copy">
+              <textarea
+                value={form.swipeCopy}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, swipeCopy: e.target.value }))
+                }
+                rows={4}
+                className="input"
+                placeholder="Social/email swipe copy for the guest to share"
+              />
+            </Field>
+            <Field label="Systeme.io contact ID">
+              <input
+                type="text"
+                value={form.systemeContactId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, systemeContactId: e.target.value }))
+                }
+                className="input"
+                placeholder="Systeme.io contact ID"
+              />
+            </Field>
+          </Section>
+
+Find this exact string:
+            <Field label="MP4 URL (Google Drive)">
+              <input
+                type="text"
+                value={form.mp4Url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mp4Url: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste Google Drive MP4 link"
+              />
+            </Field>
+
+Replace it with:
+            <Field label="MP4 URL (Google Drive)">
+              <input
+                type="text"
+                value={form.mp4Url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mp4Url: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste Google Drive MP4 link"
+              />
+              {episode.episodeNumber && episode.guestName && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Expected folder: LLS-{String(episode.episodeNumber).padStart(3, "0")} {episode.guestName}
+                </p>
+              )}
+            </Field>
+
+Find this exact string:
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send test to Make.com"}
+            </button>
+
+Replace it with:
+            <button
+              onClick={handleSendToMake}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send to Make.com"}
+            </button>
+
+
+Verification: Confirm that:
+1. prisma/schema.prisma has the four new guest fields and db:push completed successfully
+2. The ingest route now saves episodeNumber from the RSS feed
+3. The PATCH route allows the four new fields
+4. The publish route buildPayload includes guestEmail, affiliateLink, swipeCopy, systemeContactId, and mp4FolderHint
+5. The publish route uses publish: true/false instead of test: true/false
+6. The episode detail page has all four new guest fields visible in the Guest details section
+7. The button is renamed to Send to Make.com
+8. The MP4 URL field shows the expected folder hint when episodeNumber and guestName are present
+9. TypeScript typecheck passes with zero errors

@@ -14,6 +14,11 @@ interface Episode {
   descriptionWebsite: string | null;
   guestName: string | null;
   guestBio: string | null;
+  guestEmail: string | null;
+  affiliateLink: string | null;
+  swipeCopy: string | null;
+  systemeContactId: string | null;
+  episodeNumber: number | null;
   crisisCategory: string | null;
   tags: string[];
   publishStatus: string;
@@ -61,6 +66,10 @@ export default function EpisodeDetailPage() {
     publishStatus: "draft",
     youtubeId: "",
     mp4Url: "",
+    guestEmail: "",
+    affiliateLink: "",
+    swipeCopy: "",
+    systemeContactId: "",
   });
 
   async function loadEpisode() {
@@ -79,6 +88,10 @@ export default function EpisodeDetailPage() {
       publishStatus: data.publishStatus ?? "draft",
       youtubeId: data.youtubeId ?? "",
       mp4Url: data.mp4Url ?? "",
+      guestEmail: data.guestEmail ?? "",
+      affiliateLink: data.affiliateLink ?? "",
+      swipeCopy: data.swipeCopy ?? "",
+      systemeContactId: data.systemeContactId ?? "",
     });
     setLoading(false);
   }
@@ -106,7 +119,7 @@ export default function EpisodeDetailPage() {
     setSaving(false);
   }
 
-  async function handleTest() {
+  async function handleSendToMake() {
     setTesting(true);
     setMessage(null);
     const res = await fetch(
@@ -114,7 +127,7 @@ export default function EpisodeDetailPage() {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test: true }),
+        body: JSON.stringify({ publish: false }),
       }
     );
     const data = await res.json();
@@ -133,7 +146,7 @@ export default function EpisodeDetailPage() {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test: false }),
+        body: JSON.stringify({ publish: true }),
       }
     );
     const data = await res.json();
@@ -324,6 +337,17 @@ export default function EpisodeDetailPage() {
                 className="input"
               />
             </Field>
+            <Field label="Guest email">
+              <input
+                type="email"
+                value={form.guestEmail}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, guestEmail: e.target.value }))
+                }
+                className="input"
+                placeholder="guest@example.com"
+              />
+            </Field>
             <Field label="Guest bio">
               <textarea
                 value={form.guestBio}
@@ -333,6 +357,39 @@ export default function EpisodeDetailPage() {
                 rows={3}
                 className="input"
                 placeholder="Short bio shown on episode page"
+              />
+            </Field>
+            <Field label="Affiliate link">
+              <input
+                type="text"
+                value={form.affiliateLink}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, affiliateLink: e.target.value }))
+                }
+                className="input"
+                placeholder="https://..."
+              />
+            </Field>
+            <Field label="Swipe copy">
+              <textarea
+                value={form.swipeCopy}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, swipeCopy: e.target.value }))
+                }
+                rows={4}
+                className="input"
+                placeholder="Social/email swipe copy for the guest to share"
+              />
+            </Field>
+            <Field label="Systeme.io contact ID">
+              <input
+                type="text"
+                value={form.systemeContactId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, systemeContactId: e.target.value }))
+                }
+                className="input"
+                placeholder="Systeme.io contact ID"
               />
             </Field>
           </Section>
@@ -395,6 +452,11 @@ export default function EpisodeDetailPage() {
                 className="input"
                 placeholder="Paste Google Drive MP4 link"
               />
+              {episode.episodeNumber && episode.guestName && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Expected folder: LLS-{String(episode.episodeNumber).padStart(3, "0")} {episode.guestName}
+                </p>
+              )}
             </Field>
 
             {episode.thumbnailUrl && (
@@ -432,11 +494,11 @@ export default function EpisodeDetailPage() {
             </button>
 
             <button
-              onClick={handleTest}
+              onClick={handleSendToMake}
               disabled={testing}
               className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              {testing ? "Sending..." : "Send test to Make.com"}
+              {testing ? "Sending..." : "Send to Make.com"}
             </button>
 
             {episode.publishStatus === "approved" && (

@@ -34,6 +34,7 @@ export async function POST() {
           audioUrl: ep.audioUrl,
           thumbnailUrl: ep.thumbnailUrl,
           durationSeconds: ep.durationSeconds,
+          episodeNumber: ep.episodeNumber,
           captivatePublishedAt: ep.publishedAt
             ? new Date(ep.publishedAt)
             : null,
