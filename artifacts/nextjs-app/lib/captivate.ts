@@ -22,17 +22,17 @@ interface CaptivateEpisodesResponse {
 }
 
 async function getAccessToken(): Promise<string> {
-  const username = process.env.CAPTIVATE_USERNAME;
+  const userId = process.env.CAPTIVATE_USER_ID;
   const apiKey = process.env.CAPTIVATE_API_KEY;
 
-  if (!username || !apiKey) {
-    throw new Error("CAPTIVATE_USERNAME or CAPTIVATE_API_KEY not set");
+  if (!userId || !apiKey) {
+    throw new Error("CAPTIVATE_USER_ID or CAPTIVATE_API_KEY not set");
   }
 
   const res = await fetch(`${CAPTIVATE_API_BASE}/authenticate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, token: apiKey }),
+    body: JSON.stringify({ username: userId, token: apiKey }),
   });
 
   if (!res.ok) {

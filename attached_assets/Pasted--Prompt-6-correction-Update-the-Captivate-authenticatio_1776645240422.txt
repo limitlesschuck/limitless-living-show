@@ -1,0 +1,60 @@
+## Prompt 6 (correction)
+
+Update the Captivate authentication to use User ID instead of username/email.
+
+File to edit: artifacts/nextjs-app/lib/captivate.ts
+
+Find this exact string:
+async function getAccessToken(): Promise<string> {
+  const username = process.env.CAPTIVATE_USERNAME;
+  const apiKey = process.env.CAPTIVATE_API_KEY;
+
+  if (!username || !apiKey) {
+    throw new Error("CAPTIVATE_USERNAME or CAPTIVATE_API_KEY not set");
+  }
+
+  const res = await fetch(`${CAPTIVATE_API_BASE}/authenticate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, token: apiKey }),
+  });
+
+Replace it with:
+async function getAccessToken(): Promise<string> {
+  const userId = process.env.CAPTIVATE_USER_ID;
+  const apiKey = process.env.CAPTIVATE_API_KEY;
+
+  if (!userId || !apiKey) {
+    throw new Error("CAPTIVATE_USER_ID or CAPTIVATE_API_KEY not set");
+  }
+
+  const res = await fetch(`${CAPTIVATE_API_BASE}/authenticate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: userId, token: apiKey }),
+  });
+
+Also find this exact string in the ingest route at artifacts/nextjs-app/app/api/admin/episodes/ingest/route.ts:
+  const showId = process.env.CAPTIVATE_SHOW_ID;
+  if (!showId) {
+    return NextResponse.json(
+      { error: "CAPTIVATE_SHOW_ID not set" },
+      { status: 500 }
+    );
+  }
+
+No change needed there — just confirming it is still present.
+
+After saving, add a new secret in the Replit Secrets panel:
+- Key: CAPTIVATE_USER_ID
+- Value: the User ID shown in Captivate My Account → API Key page (the UUID that starts with 6112f538...)
+
+You can also remove CAPTIVATE_USERNAME from Secrets as it is no longer needed.
+
+Then restart the dev server so the new secret is loaded.
+
+Verification: Confirm that:
+1. lib/captivate.ts now uses CAPTIVATE_USER_ID instead of CAPTIVATE_USERNAME
+2. The CAPTIVATE_USER_ID secret has been added to Replit
+3. The dev server was restarted
+4. Clicking Import from Captivate on the episodes page returns a success message showing how many episodes were imported
