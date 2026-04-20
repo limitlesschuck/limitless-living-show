@@ -1,0 +1,731 @@
+## Prompt 11
+
+Build the public-facing homepage and episode pages using the Limitless Living Show brand colors (deep purple and gold). Also add the sync episode numbers admin route and an import confirmation dialog.
+
+Step 1 — Add brand colors to Tailwind config.
+
+File to edit: artifacts/nextjs-app/tailwind.config.ts
+
+Replace the entire contents with:
+
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          purple: "#2D1B69",
+          "purple-dark": "#1A0F3E",
+          "purple-mid": "#3D2780",
+          "purple-light": "#4D35A0",
+          gold: "#F0A500",
+          "gold-light": "#F5C842",
+          "gold-dark": "#C8860A",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "sans-serif"],
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
+
+
+Step 2 — Update globals.css with brand styles and Inter font.
+
+File to edit: artifacts/nextjs-app/app/globals.css
+
+Replace the entire contents with:
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-white text-gray-900 antialiased;
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent bg-white text-gray-900;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-brand-gold text-brand-purple-dark font-semibold rounded-full hover:bg-brand-gold-light transition-colors;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center px-6 py-3 border-2 border-white text-white font-semibold rounded-full hover:bg-white hover:text-brand-purple transition-colors;
+  }
+  .episode-card {
+    @apply group bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-lg hover:border-brand-gold transition-all duration-200;
+  }
+}
+
+
+Step 3 — Create the public episodes API route.
+
+Create a new file at artifacts/nextjs-app/app/api/episodes/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const category = searchParams.get("category");
+  const page = parseInt(searchParams.get("page") ?? "1");
+  const limit = 12;
+  const skip = (page - 1) * limit;
+
+  const where = {
+    publishStatus: "published",
+    ...(category ? { crisisCategory: category } : {}),
+  };
+
+  const [episodes, total] = await Promise.all([
+    prisma.episode.findMany({
+      where,
+      orderBy: { captivatePublishedAt: "desc" },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        descriptionWebsite: true,
+        guestName: true,
+        crisisCategory: true,
+        thumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+        publishedAt: true,
+      },
+    }),
+    prisma.episode.count({ where }),
+  ]);
+
+  return NextResponse.json({ episodes, total, page, limit });
+}
+
+
+Step 4 — Create the public single episode API route.
+
+Create a new file at artifacts/nextjs-app/app/api/episodes/[id]/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const episode = await prisma.episode.findFirst({
+    where: {
+      id: params.id,
+      publishStatus: "published",
+    },
+    include: {
+      cta: true,
+    },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(episode);
+}
+
+
+Step 5 — Create the sync episode numbers admin API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/sync-numbers/route.ts with the following contents:
+
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { fetchCaptivateEpisodes } from "@/lib/captivate";
+
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episodes = await fetchCaptivateEpisodes();
+  let updated = 0;
+
+  for (const ep of episodes) {
+    if (!ep.episodeNumber) continue;
+    await prisma.episode.updateMany({
+      where: { captivateId: ep.id },
+      data: { episodeNumber: ep.episodeNumber },
+    });
+    updated++;
+  }
+
+  return NextResponse.json({
+    updated,
+    message: `Episode numbers synced for ${updated} episodes. No other data was changed.`,
+  });
+}
+
+
+Step 6 — Create the shared public site header component.
+
+Create a new file at artifacts/nextjs-app/components/SiteHeader.tsx with the following contents:
+
+import Link from "next/link";
+
+export default function SiteHeader() {
+  return (
+    <header className="bg-brand-purple border-b border-brand-purple-mid">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="text-white font-bold text-lg tracking-tight">
+            Limitless <span className="text-brand-gold">Living</span>
+          </span>
+        </Link>
+        <nav className="flex items-center gap-6">
+          <Link
+            href="/episodes"
+            className="text-sm text-gray-300 hover:text-white transition-colors"
+          >
+            Episodes
+          </Link>
+          <Link
+            href="/assessment"
+            className="text-sm bg-brand-gold text-brand-purple-dark font-semibold px-4 py-1.5 rounded-full hover:bg-brand-gold-light transition-colors"
+          >
+            Free assessment
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+
+Step 7 — Build the public homepage.
+
+Replace the entire contents of artifacts/nextjs-app/app/page.tsx with:
+
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship",
+  health: "Health & addiction",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  career: "Career & purpose",
+};
+
+const PLATFORMS = [
+  {
+    name: "Apple Podcasts",
+    href: "https://podcasts.apple.com/podcast/the-limitless-living-show",
+    color: "#9B59B6",
+  },
+  {
+    name: "Spotify",
+    href: "https://open.spotify.com/show/limitlessliving",
+    color: "#1DB954",
+  },
+];
+
+async function getHomeData() {
+  const [latest, featured] = await Promise.all([
+    prisma.episode.findMany({
+      where: { publishStatus: "published" },
+      orderBy: { captivatePublishedAt: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        descriptionWebsite: true,
+        guestName: true,
+        crisisCategory: true,
+        thumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+    prisma.episode.findMany({
+      where: { publishStatus: "published", youtubeId: { not: null } },
+      orderBy: { captivatePublishedAt: "desc" },
+      take: 3,
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        descriptionWebsite: true,
+        guestName: true,
+        crisisCategory: true,
+        thumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+  ]);
+
+  return { latest, featured };
+}
+
+function formatDuration(seconds: number | null) {
+  if (!seconds) return null;
+  const m = Math.floor(seconds / 60);
+  return `${m} min`;
+}
+
+function EpisodeCard({
+  episode,
+  large = false,
+}: {
+  episode: {
+    id: string;
+    titleOriginal: string;
+    titleYoutube: string | null;
+    descriptionWebsite: string | null;
+    guestName: string | null;
+    crisisCategory: string | null;
+    thumbnailUrl: string | null;
+    episodeNumber: number | null;
+    durationSeconds: number | null;
+    captivatePublishedAt: Date | null | string;
+  };
+  large?: boolean;
+}) {
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+
+  if (large) {
+    return (
+      <Link href={`/episodes/${episode.id}`} className="group block">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:border-brand-gold transition-all duration-200">
+          <div className="relative aspect-video md:aspect-auto bg-brand-purple-dark overflow-hidden">
+            {episode.thumbnailUrl ? (
+              <img
+                src={episode.thumbnailUrl}
+                alt={title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                <span className="text-brand-gold text-4xl font-bold">LLS</span>
+              </div>
+            )}
+          </div>
+          <div className="p-8 flex flex-col justify-center">
+            {category && (
+              <span className="inline-block text-xs font-semibold text-brand-gold uppercase tracking-wider mb-3">
+                {category}
+              </span>
+            )}
+            <h2 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-brand-purple transition-colors leading-tight">
+              {title}
+            </h2>
+            {episode.guestName && (
+              <p className="text-sm text-gray-500 mb-3">
+                with {episode.guestName}
+              </p>
+            )}
+            {episode.descriptionWebsite && (
+              <p className="text-sm text-gray-600 line-clamp-3 mb-4">
+                {episode.descriptionWebsite}
+              </p>
+            )}
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              {episode.episodeNumber && (
+                <span>Ep. {episode.episodeNumber}</span>
+              )}
+              {duration && <span>{duration}</span>}
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  return (
+    <Link href={`/episodes/${episode.id}`} className="episode-card block">
+      <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
+        {episode.thumbnailUrl ? (
+          <img
+            src={episode.thumbnailUrl}
+            alt={title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+            <span className="text-brand-gold text-2xl font-bold">LLS</span>
+          </div>
+        )}
+        {category && (
+          <span className="absolute top-2 left-2 text-xs font-semibold bg-brand-gold text-brand-purple-dark px-2 py-0.5 rounded-full">
+            {category}
+          </span>
+        )}
+      </div>
+      <div className="p-4">
+        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1 group-hover:text-brand-purple transition-colors">
+          {title}
+        </h3>
+        {episode.guestName && (
+          <p className="text-xs text-gray-500">with {episode.guestName}</p>
+        )}
+        <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+          {episode.episodeNumber && <span>Ep. {episode.episodeNumber}</span>}
+          {duration && <span>{duration}</span>}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+export default async function HomePage() {
+  const { latest, featured } = await getHomeData();
+  const heroEpisode = featured[0] ?? latest[0] ?? null;
+
+  return (
+    <div className="min-h-screen bg-white">
+      <SiteHeader />
+
+      {/* Hero section */}
+      <section className="bg-brand-purple relative overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 70% 50%, #F0A500 0%, transparent 60%)",
+          }}
+        />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 relative z-10">
+          <div className="max-w-2xl">
+            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">
+              The Limitless Living Show
+            </p>
+            <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
+              Real stories of transformation and overcoming limits
+            </h1>
+            <p className="text-lg text-gray-300 mb-8">
+              Hosted by Chuck Anderson — conversations with coaches, authors,
+              and speakers who rebuilt their lives from the inside out.
+            </p>
+
+            {/* Assessment CTA */}
+            <div className="bg-white bg-opacity-10 border border-white border-opacity-20 rounded-2xl p-6 mb-8">
+              <p className="text-white font-semibold text-lg mb-1">
+                Going through a difficult time?
+              </p>
+              <p className="text-gray-300 text-sm mb-4">
+                Take our free 2-minute assessment and find your path forward.
+              </p>
+              <Link href="/assessment" className="btn-primary">
+                Take the free assessment →
+              </Link>
+            </div>
+
+            {/* Platform links */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs text-gray-400">Listen on</span>
+              {PLATFORMS.map((p) => (
+                
+                  key={p.name}
+                  href={p.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-white border border-white border-opacity-30 px-3 py-1.5 rounded-full hover:border-brand-gold hover:text-brand-gold transition-colors"
+                >
+                  {p.name}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+        {/* Featured episode */}
+        {heroEpisode && (
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Latest episode
+              </h2>
+            </div>
+            <EpisodeCard episode={heroEpisode} large />
+          </section>
+        )}
+
+        {/* Recent episodes grid */}
+        {latest.length > 0 && (
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                Recent episodes
+              </h2>
+              <Link
+                href="/episodes"
+                className="text-sm text-brand-purple font-medium hover:text-brand-gold transition-colors"
+              >
+                View all →
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {latest.slice(1).map((ep) => (
+                <EpisodeCard key={ep.id} episode={ep} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Empty state */}
+        {latest.length === 0 && (
+          <section className="text-center py-24">
+            <div className="w-16 h-16 bg-brand-purple rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-brand-gold text-2xl font-bold">LLS</span>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Episodes coming soon
+            </h2>
+            <p className="text-gray-500 text-sm mb-6">
+              Subscribe to get notified when new episodes drop.
+            </p>
+            <Link href="/assessment" className="btn-primary">
+              Take the free assessment
+            </Link>
+          </section>
+        )}
+
+        {/* Assessment CTA banner */}
+        <section className="bg-brand-purple rounded-2xl p-8 sm:p-12 text-center">
+          <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-3">
+            Free resource
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">
+            Not sure where to start?
+          </h2>
+          <p className="text-gray-300 mb-6 max-w-lg mx-auto">
+            Answer 4 quick questions and we&apos;ll match you with the right
+            episodes, resources, and support for exactly what you&apos;re going
+            through.
+          </p>
+          <Link href="/assessment" className="btn-primary">
+            Find your path forward →
+          </Link>
+        </section>
+      </div>
+
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck
+            Anderson
+          </p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/episodes"
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Episodes
+            </Link>
+            <Link
+              href="/assessment"
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Assessment
+            </Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+
+Step 8 — Add the next.config.mjs image domains so thumbnails load.
+
+File to edit: artifacts/nextjs-app/next.config.mjs
+
+Replace the entire contents with:
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  basePath: "/nextjs-app",
+  env: {
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "artwork.captivate.fm",
+      },
+      {
+        protocol: "https",
+        hostname: "podcasts.captivate.fm",
+      },
+    ],
+  },
+};
+
+export default nextConfig;
+
+
+Step 9 — Add the import confirmation dialog and sync episode numbers button to the admin episodes page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/page.tsx
+
+Find this exact string:
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestResult, setIngestResult] = useState<string | null>(null);
+
+Replace it with:
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestResult, setIngestResult] = useState<string | null>(null);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [syncingNumbers, setSyncingNumbers] = useState(false);
+
+Find this exact string:
+  async function handleIngest() {
+    setIngesting(true);
+    setIngestResult(null);
+
+Replace it with:
+  async function handleSyncNumbers() {
+    setSyncingNumbers(true);
+    setIngestResult(null);
+    try {
+      const res = await fetch("/nextjs-app/api/admin/episodes/sync-numbers", {
+        method: "POST",
+      });
+      const data = await res.json();
+      setIngestResult(data.message ?? "Sync complete");
+    } catch {
+      setIngestResult("Error: sync failed");
+    }
+    setSyncingNumbers(false);
+  }
+
+  async function handleIngest() {
+    setShowImportConfirm(false);
+    setIngesting(true);
+    setIngestResult(null);
+
+Find this exact string:
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/episodes/new"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Add manually
+          </Link>
+          <button
+            onClick={handleIngest}
+            disabled={ingesting}
+            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {ingesting ? "Importing..." : "Import from Captivate"}
+          </button>
+        </div>
+
+Replace it with:
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSyncNumbers}
+            disabled={syncingNumbers}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {syncingNumbers ? "Syncing..." : "Sync episode numbers"}
+          </button>
+          <Link
+            href="/admin/episodes/new"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Add manually
+          </Link>
+          <button
+            onClick={() => setShowImportConfirm(true)}
+            disabled={ingesting}
+            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {ingesting ? "Importing..." : "Import from Captivate"}
+          </button>
+        </div>
+
+Find this exact string:
+      {ingestResult && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+          {ingestResult}
+        </div>
+      )}
+
+Replace it with:
+      {showImportConfirm && (
+        <div className="mb-4 px-4 py-4 rounded-lg bg-amber-50 border border-amber-200">
+          <p className="text-sm font-medium text-amber-900 mb-1">
+            Import new episodes from Captivate?
+          </p>
+          <p className="text-xs text-amber-700 mb-3">
+            This will only add new episodes. Existing episode data including titles, descriptions, and all customised content will not be changed.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleIngest}
+              className="px-4 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              Yes, import new episodes
+            </button>
+            <button
+              onClick={() => setShowImportConfirm(false)}
+              className="px-4 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {ingestResult && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+          {ingestResult}
+        </div>
+      )}
+
+
+Verification: Confirm that:
+1. tailwind.config.ts has the brand color palette with purple and gold values
+2. globals.css imports Inter font and has btn-primary, btn-outline, and episode-card classes
+3. app/api/episodes/route.ts was created (public, no auth)
+4. app/api/episodes/[id]/route.ts was created (public, no auth)
+5. app/api/admin/episodes/sync-numbers/route.ts was created
+6. components/SiteHeader.tsx was created
+7. app/page.tsx is the full homepage with hero, episode grid, and assessment CTA sections
+8. next.config.mjs now includes the Captivate image domains
+9. The admin episodes page has the Sync episode numbers button and the import confirmation dialog
+10. TypeScript typecheck passes with zero errors
+11. The homepage loads at the root URL and shows the purple hero section with the assessment CTA

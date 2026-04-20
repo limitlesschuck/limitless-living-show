@@ -37,6 +37,8 @@ export default function EpisodesPage() {
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
   const [ingestResult, setIngestResult] = useState<string | null>(null);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [syncingNumbers, setSyncingNumbers] = useState(false);
 
   async function loadEpisodes(status: string) {
     setLoading(true);
@@ -48,7 +50,23 @@ export default function EpisodesPage() {
     setLoading(false);
   }
 
+  async function handleSyncNumbers() {
+    setSyncingNumbers(true);
+    setIngestResult(null);
+    try {
+      const res = await fetch("/nextjs-app/api/admin/episodes/sync-numbers", {
+        method: "POST",
+      });
+      const data = await res.json();
+      setIngestResult(data.message ?? "Sync complete");
+    } catch {
+      setIngestResult("Error: sync failed");
+    }
+    setSyncingNumbers(false);
+  }
+
   async function handleIngest() {
+    setShowImportConfirm(false);
     setIngesting(true);
     setIngestResult(null);
     try {
@@ -82,6 +100,13 @@ export default function EpisodesPage() {
           <p className="text-sm text-gray-500 mt-1">{total} total</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleSyncNumbers}
+            disabled={syncingNumbers}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {syncingNumbers ? "Syncing..." : "Sync episode numbers"}
+          </button>
           <Link
             href="/admin/episodes/new"
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -89,7 +114,7 @@ export default function EpisodesPage() {
             Add manually
           </Link>
           <button
-            onClick={handleIngest}
+            onClick={() => setShowImportConfirm(true)}
             disabled={ingesting}
             className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
           >
@@ -97,6 +122,31 @@ export default function EpisodesPage() {
           </button>
         </div>
       </div>
+
+      {showImportConfirm && (
+        <div className="mb-4 px-4 py-4 rounded-lg bg-amber-50 border border-amber-200">
+          <p className="text-sm font-medium text-amber-900 mb-1">
+            Import new episodes from Captivate?
+          </p>
+          <p className="text-xs text-amber-700 mb-3">
+            This will only add new episodes. Existing episode data including titles, descriptions, and all customised content will not be changed.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleIngest}
+              className="px-4 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              Yes, import new episodes
+            </button>
+            <button
+              onClick={() => setShowImportConfirm(false)}
+              className="px-4 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {ingestResult && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
