@@ -1,0 +1,164 @@
+## Prompt 8
+
+Create the episode detail page and the Claude AI content generation API route. This is the core of the publishing workflow — admin clicks an episode, reviews the original content, assigns a crisis category, and triggers Claude to generate YouTube title options, description, and tags.
+
+Step 1 — Create the Claude AI content generation helper.
+
+Create a new file at artifacts/nextjs-app/lib/claude.ts with the following contents:
+
+const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
+const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+
+export interface GeneratedEpisodeContent {
+  youtubeTitles: string[];
+  youtubeDescription: string;
+  podcastTitle: string;
+  websiteDescription: string;
+  tags: string[];
+  suggestedCategory: string;
+}
+
+export async function generateEpisodeContent(params: {
+  titleOriginal: string;
+  descriptionOriginal: string;
+  guestName: string | null;
+  crisisCategory: string | null;
+}): Promise<GeneratedEpisodeContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const categoryHint = params.crisisCategory
+    ? `The episode has been categorised as: ${params.crisisCategory}.`
+    : "Please suggest the most appropriate crisis category from: grief, relationship, health, financial, spiritual, career.";
+
+  const prompt = `You are an expert podcast content strategist specialising in personal transformation content. Your job is to rewrite podcast episode metadata to maximise YouTube discovery and emotional resonance for people going through a personal crisis or life transition.
+
+Here is the episode information:
+Title: ${params.titleOriginal}
+Guest: ${params.guestName ?? "Not specified"}
+Description: ${params.descriptionOriginal}
+${categoryHint}
+
+Generate the following and return ONLY valid JSON with no markdown, no code fences, no preamble:
+
+{
+  "youtubeTitles": [
+    "Title option 1 — lead with the pain/crisis state, include specific detail, under 70 chars",
+    "Title option 2 — different angle on the same story",
+    "Title option 3 — most search-optimised version"
+  ],
+  "youtubeDescription": "Full YouTube description (300-400 words). First 2 lines must hook the viewer before the fold. Include timestamps if available from the original. End with a CTA to take the free assessment. Use line breaks for readability.",
+  "podcastTitle": "Rewritten podcast title optimised for Apple and Spotify search — under 60 chars, lead with topic not guest name",
+  "websiteDescription": "SEO-optimised episode page description (150-200 words). Include the primary search keyword naturally. Write for someone searching for help with this specific crisis.",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
+  "suggestedCategory": "one of: grief, relationship, health, financial, spiritual, career"
+}`;
+
+  const res = await fetch(CLAUDE_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Claude API error: ${res.status} — ${error}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.[0]?.text ?? "";
+
+  try {
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned) as GeneratedEpisodeContent;
+  } catch {
+    throw new Error(`Failed to parse Claude response: ${text}`);
+  }
+}
+
+
+Step 2 — Create the single episode API route (GET and PATCH).
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+    include: {
+      aiLogs: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      },
+    },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(episode);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "ctaId",
+  ];
+
+  const data: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (key in body) data[key] = body[key];
+  }
+
+  const episode = await prisma.episode.update({
+    where: { id: params.id },
+    data,
+  });
+
+  return NextResponse.json(episode);
+}
+
+
+Step 3 — Create the AI generation API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/generate/route.ts with the following con
