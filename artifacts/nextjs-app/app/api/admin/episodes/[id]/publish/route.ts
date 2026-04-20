@@ -4,47 +4,63 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-interface WebhookPayload {
-  episodeId: string;
+const MAKE_WEBHOOK_URL =
+  "https://hook.us2.make.com/026hpzp326lmlulqd6mx4asxfowkv4rf";
+
+function buildPayload(episode: {
+  id: string;
+  episodeNumber: number | null;
+  captivatePublishedAt: Date | null;
+  guestName: string | null;
   titleOriginal: string;
   titleYoutube: string | null;
   titlePodcast: string | null;
   descriptionYoutube: string | null;
   descriptionWebsite: string | null;
-  guestName: string | null;
-  crisisCategory: string | null;
-  tags: string[];
-  audioUrl: string | null;
+  descriptionOriginal: string | null;
+  captivateId: string | null;
   thumbnailUrl: string | null;
-  publishedAt: string;
-}
-
-async function triggerWebhook(
-  url: string,
-  payload: WebhookPayload
-): Promise<{ ok: boolean; status: number; body: string }> {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.text();
-    return { ok: res.ok, status: res.status, body };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return { ok: false, status: 0, body: message };
-  }
+  audioUrl: string | null;
+  mp4Url: string | null;
+  tags: string[];
+  crisisCategory: string | null;
+}) {
+  return {
+    episodeId: episode.id,
+    epNumber: episode.episodeNumber,
+    pubDate: episode.captivatePublishedAt
+      ? episode.captivatePublishedAt.toISOString().split("T")[0]
+      : null,
+    guestName: episode.guestName,
+    title: episode.titleYoutube ?? episode.titleOriginal,
+    titlePodcast: episode.titlePodcast,
+    desc: episode.descriptionYoutube,
+    captivateId: episode.captivateId,
+    epUrl: episode.captivateId
+      ? `https://limitlesslivingpodcast.com/episode/${episode.captivateId}`
+      : null,
+    thumb: episode.thumbnailUrl,
+    showNotes: episode.descriptionWebsite,
+    keywords: episode.tags.join(", "),
+    mp4Url: episode.mp4Url,
+    audioUrl: episode.audioUrl,
+    crisisCategory: episode.crisisCategory,
+    ytUploaded: "Queued",
+    isTest: false,
+  };
 }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
   if (!session || !["super_admin", "editor"].includes(session.user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const body = await req.json().catch(() => ({}));
+  const isTest = body.test === true;
 
   const episode = await prisma.episode.findUnique({
     where: { id: params.id },
@@ -54,68 +70,42 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (episode.publishStatus !== "approved") {
+  if (!isTest && episode.publishStatus !== "approved") {
     return NextResponse.json(
       { error: "Episode must be in approved status before publishing" },
       { status: 400 }
     );
   }
 
-  const payload: WebhookPayload = {
-    episodeId: episode.id,
-    titleOriginal: episode.titleOriginal,
-    titleYoutube: episode.titleYoutube,
-    titlePodcast: episode.titlePodcast,
-    descriptionYoutube: episode.descriptionYoutube,
-    descriptionWebsite: episode.descriptionWebsite,
-    guestName: episode.guestName,
-    crisisCategory: episode.crisisCategory,
-    tags: episode.tags,
-    audioUrl: episode.audioUrl,
-    thumbnailUrl: episode.thumbnailUrl,
-    publishedAt: new Date().toISOString(),
-  };
+  const payload = buildPayload(episode);
+  if (isTest) payload.isTest = true;
 
-  const results: Record<string, { ok: boolean; status: number; body: string }> =
-    {};
-
-  const sheetsUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  const makeUrl = process.env.MAKE_YOUTUBE_WEBHOOK_URL;
-
-  if (sheetsUrl) {
-    results.googleSheets = await triggerWebhook(sheetsUrl, payload);
-  } else {
-    results.googleSheets = {
-      ok: false,
-      status: 0,
-      body: "GOOGLE_SHEETS_WEBHOOK_URL not set",
-    };
+  let webhookResult: { ok: boolean; status: number; body: string };
+  try {
+    const res = await fetch(MAKE_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const responseBody = await res.text();
+    webhookResult = { ok: res.ok, status: res.status, body: responseBody };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    webhookResult = { ok: false, status: 0, body: message };
   }
-
-  if (makeUrl) {
-    results.makeYoutube = await triggerWebhook(makeUrl, payload);
-  } else {
-    results.makeYoutube = {
-      ok: false,
-      status: 0,
-      body: "MAKE_YOUTUBE_WEBHOOK_URL not set",
-    };
-  }
-
-  const allOk = Object.values(results).every((r) => r.ok);
 
   await prisma.publishLog.create({
     data: {
       episodeId: episode.id,
       triggeredById: session.user.id,
-      platform: "youtube",
-      status: allOk ? "success" : "failed",
+      platform: isTest ? "test" : "youtube",
+      status: webhookResult.ok ? "success" : "failed",
       webhookPayload: payload as unknown as Prisma.InputJsonValue,
-      responseBody: results as unknown as Prisma.InputJsonValue,
+      responseBody: webhookResult as unknown as Prisma.InputJsonValue,
     },
   });
 
-  if (allOk) {
+  if (!isTest && webhookResult.ok) {
     await prisma.episode.update({
       where: { id: episode.id },
       data: { publishStatus: "published", publishedAt: new Date() },
@@ -123,10 +113,14 @@ export async function POST(
   }
 
   return NextResponse.json({
-    success: allOk,
-    results,
-    message: allOk
-      ? "Episode published — webhooks fired successfully"
-      : "One or more webhooks failed — check results for details",
+    success: webhookResult.ok,
+    isTest,
+    payload,
+    webhookResponse: webhookResult,
+    message: webhookResult.ok
+      ? isTest
+        ? "Test payload sent to Make.com — check your scenario for the received data"
+        : "Episode published — Make.com webhook fired successfully"
+      : `Webhook failed: ${webhookResult.body}`,
   });
 }

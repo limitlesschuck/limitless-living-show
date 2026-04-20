@@ -51,6 +51,7 @@ export async function PATCH(
     "tags",
     "publishStatus",
     "youtubeId",
+    "mp4Url",
     "ctaId",
   ];
 

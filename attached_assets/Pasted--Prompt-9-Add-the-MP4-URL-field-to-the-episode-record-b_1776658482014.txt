@@ -1,0 +1,510 @@
+## Prompt 9
+
+Add the MP4 URL field to the episode record, build the publish API route that fires the Make.com webhook, and add a test payload sender to the episode detail page.
+
+Step 1 — Add videoUrl and episodeNumber fields to the episode ingestion so they save correctly from the RSS feed.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/ingest/route.ts
+
+Find this exact string:
+      await prisma.episode.create({
+        data: {
+          captivateId: ep.id,
+          titleOriginal: ep.title,
+          descriptionOriginal: ep.description,
+          audioUrl: ep.audioUrl,
+          thumbnailUrl: ep.thumbnailUrl,
+          durationSeconds: ep.durationSeconds,
+          captivatePublishedAt: ep.publishedAt
+            ? new Date(ep.publishedAt)
+            : null,
+          guestName: extractGuestName(ep.title),
+          publishStatus: "draft",
+        },
+      });
+
+Replace it with:
+      await prisma.episode.create({
+        data: {
+          captivateId: ep.id,
+          titleOriginal: ep.title,
+          descriptionOriginal: ep.description,
+          audioUrl: ep.audioUrl,
+          thumbnailUrl: ep.thumbnailUrl,
+          durationSeconds: ep.durationSeconds,
+          captivatePublishedAt: ep.publishedAt
+            ? new Date(ep.publishedAt)
+            : null,
+          guestName: extractGuestName(ep.title),
+          publishStatus: "draft",
+        },
+      });
+      created++;
+    }
+
+Wait — do not apply this step. Skip to Step 2.
+
+
+Step 2 — Add mp4Url and episodeNumber columns to the Prisma schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+  videoUrl              String?
+  durationSeconds       Int?
+
+Replace it with:
+  videoUrl              String?
+  mp4Url                String?
+  episodeNumber         Int?
+  durationSeconds       Int?
+
+After saving the file run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 3 — Update the PATCH route to allow mp4Url.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/route.ts
+
+Find this exact string:
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "ctaId",
+  ];
+
+Replace it with:
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "mp4Url",
+    "ctaId",
+  ];
+
+
+Step 4 — Create the publish API route that fires the Make.com webhook.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/publish/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+const MAKE_WEBHOOK_URL = "https://hook.us2.make.com/026hpzp326lmlulqd6mx4asxfowkv4rf";
+
+function buildPayload(episode: {
+  id: string;
+  episodeNumber: number | null;
+  captivatePublishedAt: Date | null;
+  guestName: string | null;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  titlePodcast: string | null;
+  descriptionYoutube: string | null;
+  descriptionWebsite: string | null;
+  descriptionOriginal: string | null;
+  captivateId: string | null;
+  thumbnailUrl: string | null;
+  audioUrl: string | null;
+  mp4Url: string | null;
+  tags: string[];
+  crisisCategory: string | null;
+}) {
+  return {
+    episodeId: episode.id,
+    epNumber: episode.episodeNumber,
+    pubDate: episode.captivatePublishedAt
+      ? episode.captivatePublishedAt.toISOString().split("T")[0]
+      : null,
+    guestName: episode.guestName,
+    title: episode.titleYoutube ?? episode.titleOriginal,
+    titlePodcast: episode.titlePodcast,
+    desc: episode.descriptionYoutube,
+    captivateId: episode.captivateId,
+    epUrl: episode.captivateId
+      ? `https://limitlesslivingpodcast.com/episode/${episode.captivateId}`
+      : null,
+    thumb: episode.thumbnailUrl,
+    showNotes: episode.descriptionWebsite,
+    keywords: episode.tags.join(", "),
+    mp4Url: episode.mp4Url,
+    audioUrl: episode.audioUrl,
+    crisisCategory: episode.crisisCategory,
+    ytUploaded: "Queued",
+    isTest: false,
+  };
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const isTest = body.test === true;
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!isTest && episode.publishStatus !== "approved") {
+    return NextResponse.json(
+      { error: "Episode must be in approved status before publishing" },
+      { status: 400 }
+    );
+  }
+
+  const payload = buildPayload(episode);
+  if (isTest) payload.isTest = true;
+
+  let webhookResult: { ok: boolean; status: number; body: string };
+  try {
+    const res = await fetch(MAKE_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const responseBody = await res.text();
+    webhookResult = { ok: res.ok, status: res.status, body: responseBody };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    webhookResult = { ok: false, status: 0, body: message };
+  }
+
+  await prisma.publishLog.create({
+    data: {
+      episodeId: episode.id,
+      triggeredById: session.user.id,
+      platform: isTest ? "test" : "youtube",
+      status: webhookResult.ok ? "success" : "failed",
+      webhookPayload: payload as unknown as Record<string, unknown>,
+      responseBody: webhookResult as unknown as Record<string, unknown>,
+    },
+  });
+
+  if (!isTest && webhookResult.ok) {
+    await prisma.episode.update({
+      where: { id: episode.id },
+      data: { publishStatus: "published", publishedAt: new Date() },
+    });
+  }
+
+  return NextResponse.json({
+    success: webhookResult.ok,
+    isTest,
+    payload,
+    webhookResponse: webhookResult,
+    message: webhookResult.ok
+      ? isTest
+        ? "Test payload sent to Make.com — check your scenario for the received data"
+        : "Episode published — Make.com webhook fired successfully"
+      : `Webhook failed: ${webhookResult.body}`,
+  });
+}
+
+
+Step 5 — Add the YouTube ID sync API route so Make.com can write back the video ID.
+
+Create a new file at artifacts/nextjs-app/app/api/webhooks/youtube-complete/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+
+  if (!body?.episodeId || !body?.youtubeUrl) {
+    return NextResponse.json(
+      { error: "episodeId and youtubeUrl are required" },
+      { status: 400 }
+    );
+  }
+
+  const youtubeId = body.youtubeUrl.includes("watch?v=")
+    ? body.youtubeUrl.split("watch?v=")[1].split("&")[0]
+    : body.youtubeUrl.split("/").pop() ?? body.youtubeUrl;
+
+  const episode = await prisma.episode.update({
+    where: { id: body.episodeId },
+    data: {
+      youtubeId,
+      publishStatus: "published",
+      publishedAt: new Date(),
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    episodeId: episode.id,
+    youtubeId,
+  });
+}
+
+
+Step 6 — Update the episode detail page to add the MP4 URL field, Send Test to Make button, and Publish button.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+Replace it with:
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+Find this exact string:
+  const [form, setForm] = useState({
+    titleYoutube: "",
+    titlePodcast: "",
+    descriptionYoutube: "",
+    descriptionWebsite: "",
+    guestName: "",
+    guestBio: "",
+    crisisCategory: "",
+    tags: "",
+    publishStatus: "draft",
+    youtubeId: "",
+  });
+
+Replace it with:
+  const [form, setForm] = useState({
+    titleYoutube: "",
+    titlePodcast: "",
+    descriptionYoutube: "",
+    descriptionWebsite: "",
+    guestName: "",
+    guestBio: "",
+    crisisCategory: "",
+    tags: "",
+    publishStatus: "draft",
+    youtubeId: "",
+    mp4Url: "",
+  });
+
+Find this exact string:
+      mp4Url: data.mp4Url ?? "",
+
+Wait — this string does not exist yet. Instead find:
+      youtubeId: data.youtubeId ?? "",
+    });
+
+Replace it with:
+      youtubeId: data.youtubeId ?? "",
+      mp4Url: data.mp4Url ?? "",
+    });
+
+Find this exact string:
+      body: JSON.stringify({
+        ...form,
+        tags: form.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      }),
+
+Replace it with:
+      body: JSON.stringify({
+        ...form,
+        tags: form.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        mp4Url: form.mp4Url,
+      }),
+
+Find this exact string:
+  async function handleGenerate() {
+
+Add the following two functions immediately before it:
+  async function handleTest() {
+    setTesting(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: true }),
+      }
+    );
+    const data = await res.json();
+    setMessage({
+      type: data.success ? "success" : "error",
+      text: data.message,
+    });
+    setTesting(false);
+  }
+
+  async function handlePublish() {
+    setPublishing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: false }),
+      }
+    );
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setMessage({ type: "success", text: data.message });
+      loadEpisode();
+    } else if (res.status === 400) {
+      setMessage({
+        type: "error",
+        text: "Episode must be set to approved before publishing",
+      });
+    } else {
+      setMessage({
+        type: "error",
+        text: data.message ?? "Publish failed",
+      });
+    }
+    setPublishing(false);
+  }
+
+Find this exact string:
+            <Field label="YouTube video ID">
+              <input
+                type="text"
+                value={form.youtubeId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, youtubeId: e.target.value }))
+                }
+                className="input"
+                placeholder="e.g. dQw4w9WgXcQ"
+              />
+            </Field>
+
+Replace it with:
+            <Field label="YouTube video ID">
+              <input
+                type="text"
+                value={form.youtubeId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, youtubeId: e.target.value }))
+                }
+                className="input"
+                placeholder="e.g. dQw4w9WgXcQ"
+              />
+            </Field>
+
+            <Field label="MP4 URL (Google Drive)">
+              <input
+                type="text"
+                value={form.mp4Url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mp4Url: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste Google Drive MP4 link"
+              />
+            </Field>
+
+Find this exact string:
+            <button
+              onClick={() => router.push("/admin/episodes")}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+
+Replace it with:
+            <button
+              onClick={() => router.push("/admin/episodes")}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send test to Make.com"}
+            </button>
+
+            {episode.publishStatus === "approved" && (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                {publishing ? "Publishing..." : "Publish to YouTube"}
+              </button>
+            )}
+
+
+Step 7 — Update the Claude model string.
+
+File to edit: artifacts/nextjs-app/lib/claude.ts
+
+Find this exact string:
+const CLAUDE_MODEL = "claude-sonnet-4-5-20250929";
+
+Replace it with:
+const CLAUDE_MODEL = "claude-sonnet-4-6";
+
+Also find this exact string:
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Claude API error: ${res.status} — ${error}`);
+  }
+
+Replace it with:
+  if (!res.ok) {
+    if (res.status === 529 || res.status === 402) {
+      throw new Error(
+        "Anthropic API credit limit reached — please add credits at console.anthropic.com"
+      );
+    }
+    if (res.status === 401) {
+      throw new Error(
+        "Anthropic API key is invalid — check CLAUDE_API_KEY in Replit Secrets"
+      );
+    }
+    const error = await res.text();
+    throw new Error(`Claude API error: ${res.status} — ${error}`);
+  }
+
+
+Verification: Confirm that:
+1. prisma/schema.prisma now has mp4Url and episodeNumber fields and db:push completed
+2. app/api/admin/episodes/[id]/publish/route.ts was created
+3. app/api/webhooks/youtube-complete/route.ts was created
+4. The episode detail page now has mp4Url in the form state and a MP4 URL input field
+5. The Send test to Make.com button is visible on the episode detail page
+6. The Publish to YouTube button appears when episode status is approved
+7. lib/claude.ts now uses claude-sonnet-4-6 and has the credit error handling
+8. TypeScript typecheck passes with zero errors

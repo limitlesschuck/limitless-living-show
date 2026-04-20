@@ -20,6 +20,7 @@ interface Episode {
   audioUrl: string | null;
   thumbnailUrl: string | null;
   youtubeId: string | null;
+  mp4Url: string | null;
   captivatePublishedAt: string | null;
 }
 
@@ -42,6 +43,7 @@ export default function EpisodeDetailPage() {
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -58,6 +60,7 @@ export default function EpisodeDetailPage() {
     tags: "",
     publishStatus: "draft",
     youtubeId: "",
+    mp4Url: "",
   });
 
   async function loadEpisode() {
@@ -75,6 +78,7 @@ export default function EpisodeDetailPage() {
       tags: (data.tags ?? []).join(", "),
       publishStatus: data.publishStatus ?? "draft",
       youtubeId: data.youtubeId ?? "",
+      mp4Url: data.mp4Url ?? "",
     });
     setLoading(false);
   }
@@ -102,12 +106,35 @@ export default function EpisodeDetailPage() {
     setSaving(false);
   }
 
+  async function handleTest() {
+    setTesting(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: true }),
+      }
+    );
+    const data = await res.json();
+    setMessage({
+      type: data.success ? "success" : "error",
+      text: data.message,
+    });
+    setTesting(false);
+  }
+
   async function handlePublish() {
     setPublishing(true);
     setMessage(null);
     const res = await fetch(
       `/nextjs-app/api/admin/episodes/${id}/publish`,
-      { method: "POST" }
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: false }),
+      }
     );
     const data = await res.json();
     if (res.ok && data.success) {
@@ -116,12 +143,12 @@ export default function EpisodeDetailPage() {
     } else if (res.status === 400) {
       setMessage({
         type: "error",
-        text: "Episode must be set to approved status before publishing",
+        text: "Episode must be set to approved before publishing",
       });
     } else {
       setMessage({
         type: "error",
-        text: data.message ?? "Publish failed — check webhook configuration",
+        text: data.message ?? "Publish failed",
       });
     }
     setPublishing(false);
@@ -358,6 +385,18 @@ export default function EpisodeDetailPage() {
               />
             </Field>
 
+            <Field label="MP4 URL (Google Drive)">
+              <input
+                type="text"
+                value={form.mp4Url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mp4Url: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste Google Drive MP4 link"
+              />
+            </Field>
+
             {episode.thumbnailUrl && (
               <Field label="Thumbnail">
                 <img
@@ -391,6 +430,15 @@ export default function EpisodeDetailPage() {
             >
               Cancel
             </button>
+
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send test to Make.com"}
+            </button>
+
             {episode.publishStatus === "approved" && (
               <button
                 onClick={handlePublish}
