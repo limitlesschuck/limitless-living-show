@@ -1,0 +1,747 @@
+## Prompt 15
+
+Build the assessment funnel — a 4-question flow that segments visitors by crisis type and urgency, captures their email, syncs to Systeme.io, and routes them to a personalised result page.
+
+Step 1 — Create the assessment submission API route.
+
+Create a new file at artifacts/nextjs-app/app/api/assessment/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+const SYSTEME_API_KEY = process.env.SYSTEME_API_KEY ?? "";
+const SYSTEME_API_URL = "https://api.systeme.io/api";
+
+interface AssessmentBody {
+  firstName: string;
+  email: string;
+  crisisCategory: string;
+  crisisDuration: string;
+  urgency: string;
+  sourceEpisodeId?: string;
+}
+
+function computeScore(urgency: string): number {
+  const scores: Record<string, number> = {
+    crisis: 10,
+    struggling: 7,
+    healing: 4,
+    exploring: 2,
+  };
+  return scores[urgency] ?? 5;
+}
+
+function computeResultType(score: number): string {
+  if (score >= 8) return "coach_referral";
+  if (score >= 5) return "resource";
+  return "nurture";
+}
+
+async function syncToSysteme(params: {
+  email: string;
+  firstName: string;
+  crisisCategory: string;
+  urgency: string;
+  resultType: string;
+}): Promise<boolean> {
+  if (!SYSTEME_API_KEY) return false;
+
+  try {
+    const tag = `lls-${params.crisisCategory}-${params.urgency}`;
+    const res = await fetch(`${SYSTEME_API_URL}/contacts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": SYSTEME_API_KEY,
+      },
+      body: JSON.stringify({
+        email: params.email,
+        firstName: params.firstName,
+        fields: [
+          { slug: "crisis_category", value: params.crisisCategory },
+          { slug: "urgency_level", value: params.urgency },
+          { slug: "result_type", value: params.resultType },
+        ],
+        tags: [tag, "lls-assessment"],
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function getAffiliateRoute(
+  crisisCategory: string,
+  urgency: string
+): Promise<string | null> {
+  const route = await prisma.affiliateRoute.findFirst({
+    where: {
+      crisisCategory,
+      isActive: true,
+      OR: [{ urgencyLevel: urgency }, { urgencyLevel: "any" }],
+    },
+    orderBy: { priority: "asc" },
+  });
+  return route?.id ?? null;
+}
+
+export async function POST(req: NextRequest) {
+  const body = (await req.json()) as AssessmentBody;
+
+  const { firstName, email, crisisCategory, crisisDuration, urgency, sourceEpisodeId } = body;
+
+  if (!email || !crisisCategory || !urgency) {
+    return NextResponse.json(
+      { error: "email, crisisCategory, and urgency are required" },
+      { status: 400 }
+    );
+  }
+
+  const score = computeScore(urgency);
+  const resultType = computeResultType(score);
+  const affiliateRouteId = await getAffiliateRoute(crisisCategory, urgency);
+
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+
+  const lead = await prisma.lead.create({
+    data: {
+      email,
+      firstName: firstName || null,
+      crisisCategory,
+      crisisDuration: crisisDuration || null,
+      urgency,
+      score,
+      resultType,
+      sourceEpisodeId: sourceEpisodeId || null,
+      affiliateRouteId,
+      ipAddress: ip,
+      emailSynced: false,
+    },
+  });
+
+  const synced = await syncToSysteme({
+    email,
+    firstName,
+    crisisCategory,
+    urgency,
+    resultType,
+  });
+
+  if (synced) {
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { emailSynced: true },
+    });
+  }
+
+  return NextResponse.json({
+    success: true,
+    leadId: lead.id,
+    resultType,
+    crisisCategory,
+    urgency,
+    score,
+  });
+}
+
+
+Step 2 — Add the SYSTEME_API_KEY secret placeholder.
+
+In the Replit Secrets panel, add:
+- Key: SYSTEME_API_KEY
+- Value: your Systeme.io API key (found in Systeme.io → Settings → API Keys)
+
+
+Step 3 — Create the assessment page.
+
+Create a new file at artifacts/nextjs-app/app/assessment/page.tsx with the following contents:
+
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+const CATEGORIES = [
+  { value: "grief", label: "Grief or loss", emoji: "💙" },
+  { value: "relationship", label: "Relationship or divorce", emoji: "💔" },
+  { value: "health", label: "Health or addiction", emoji: "🌿" },
+  { value: "financial", label: "Financial hardship", emoji: "💪" },
+  { value: "spiritual", label: "Spiritual awakening", emoji: "✨" },
+  { value: "career", label: "Career or purpose", emoji: "🎯" },
+];
+
+const DURATIONS = [
+  { value: "just_started", label: "Just started — very recent" },
+  { value: "few_months", label: "A few months" },
+  { value: "over_a_year", label: "Over a year" },
+  { value: "long_term", label: "For as long as I can remember" },
+];
+
+const URGENCY_OPTIONS = [
+  {
+    value: "crisis",
+    label: "I'm in crisis and need help immediately",
+    color: "border-red-300 hover:border-red-500",
+    selected: "bg-red-50 border-red-500",
+  },
+  {
+    value: "struggling",
+    label: "I'm struggling and looking for direction",
+    color: "border-amber-300 hover:border-amber-500",
+    selected: "bg-amber-50 border-amber-500",
+  },
+  {
+    value: "healing",
+    label: "I'm starting to heal but want support",
+    color: "border-blue-300 hover:border-blue-500",
+    selected: "bg-blue-50 border-blue-500",
+  },
+  {
+    value: "exploring",
+    label: "I'm curious and exploring",
+    color: "border-green-300 hover:border-green-500",
+    selected: "bg-green-50 border-green-500",
+  },
+];
+
+export default function AssessmentPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillCategory = searchParams.get("category") ?? "";
+
+  const [step, setStep] = useState(prefillCategory ? 2 : 1);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    crisisCategory: prefillCategory,
+    crisisDuration: "",
+    urgency: "",
+    firstName: "",
+    email: "",
+  });
+
+  function selectCategory(value: string) {
+    setForm((f) => ({ ...f, crisisCategory: value }));
+    setStep(2);
+  }
+
+  function selectDuration(value: string) {
+    setForm((f) => ({ ...f, crisisDuration: value }));
+    setStep(3);
+  }
+
+  function selectUrgency(value: string) {
+    setForm((f) => ({ ...f, urgency: value }));
+    setStep(4);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+
+    const res = await fetch("/nextjs-app/api/assessment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      router.push(
+        `/assessment/result?type=${data.resultType}&category=${data.crisisCategory}&urgency=${data.urgency}`
+      );
+    } else {
+      setSubmitting(false);
+      alert("Something went wrong. Please try again.");
+    }
+  }
+
+  const totalSteps = 4;
+  const progress = (step / totalSteps) * 100;
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <div className="bg-brand-purple">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="text-white font-bold text-lg">
+            Limitless <span className="text-brand-gold">Living</span>
+          </Link>
+          <span className="text-gray-300 text-sm">
+            Free assessment
+          </span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1 bg-gray-100">
+        <div
+          className="h-1 bg-brand-gold transition-all duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        {/* Step 1 — Crisis category */}
+        {step === 1 && (
+          <div>
+            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-2">
+              Question 1 of 4
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">
+              What best describes what you&apos;re going through right now?
+            </h1>
+            <p className="text-gray-500 text-sm mb-8">
+              Choose the option that feels closest to your situation.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => selectCategory(c.value)}
+                  className="flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-brand-purple hover:bg-purple-50 text-left transition-all group"
+                >
+                  <span className="text-2xl">{c.emoji}</span>
+                  <span className="text-sm font-medium text-gray-800 group-hover:text-brand-purple">
+                    {c.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Duration */}
+        {step === 2 && (
+          <div>
+            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-2">
+              Question 2 of 4
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">
+              How long have you been dealing with this?
+            </h1>
+            <p className="text-gray-500 text-sm mb-8">
+              This helps us understand where you are in your journey.
+            </p>
+            <div className="space-y-3">
+              {DURATIONS.map((d) => (
+                <button
+                  key={d.value}
+                  onClick={() => selectDuration(d.value)}
+                  className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-brand-purple hover:bg-purple-50 text-left transition-all"
+                >
+                  <span className="text-sm font-medium text-gray-800">
+                    {d.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setStep(1)}
+              className="mt-6 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+
+        {/* Step 3 — Urgency */}
+        {step === 3 && (
+          <div>
+            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-2">
+              Question 3 of 4
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">
+              Where are you right now?
+            </h1>
+            <p className="text-gray-500 text-sm mb-8">
+              Be honest — this helps us point you to the right support.
+            </p>
+            <div className="space-y-3">
+              {URGENCY_OPTIONS.map((u) => (
+                <button
+                  key={u.value}
+                  onClick={() => selectUrgency(u.value)}
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${
+                    form.urgency === u.value ? u.selected : u.color
+                  }`}
+                >
+                  <span className="text-sm font-medium text-gray-800">
+                    {u.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setStep(2)}
+              className="mt-6 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+
+        {/* Step 4 — Email capture */}
+        {step === 4 && (
+          <div>
+            <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-2">
+              Question 4 of 4
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">
+              Where should we send your personalised resource guide?
+            </h1>
+            <p className="text-gray-500 text-sm mb-8">
+              We&apos;ll match you with episodes, resources, and support based
+              on your answers. No spam, ever.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  First name
+                </label>
+                <input
+                  type="text"
+                  value={form.firstName}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, firstName: e.target.value }))
+                  }
+                  className="input"
+                  placeholder="Your first name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email address <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                  required
+                  className="input"
+                  placeholder="you@example.com"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="btn-primary w-full text-center disabled:opacity-50"
+              >
+                {submitting ? "Finding your path..." : "Show me my results →"}
+              </button>
+              <p className="text-xs text-gray-400 text-center">
+                By continuing you agree to receive emails from the Limitless
+                Living Show. Unsubscribe any time.
+              </p>
+            </form>
+            <button
+              onClick={() => setStep(3)}
+              className="mt-4 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+Step 4 — Create the assessment result page.
+
+Create a new file at artifacts/nextjs-app/app/assessment/result/page.tsx with the following contents:
+
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "grief and loss",
+  relationship: "relationship challenges",
+  health: "health and addiction",
+  financial: "financial hardship",
+  spiritual: "spiritual awakening",
+  career: "career and purpose",
+};
+
+const RESULT_CONTENT: Record<string, {
+  headline: string;
+  subtext: string;
+  ctaLabel: string;
+  ctaHref: string;
+  secondaryLabel: string;
+}> = {
+  coach_referral: {
+    headline: "You deserve real support right now",
+    subtext:
+      "Based on your answers, you're dealing with something significant and would benefit most from working with a specialist coach. We've matched you with coaches who have helped others through exactly what you're experiencing.",
+    ctaLabel: "Connect with a coach →",
+    ctaHref: "https://www.betterhelp.com",
+    secondaryLabel: "Browse episodes first",
+  },
+  resource: {
+    headline: "You're on the right path — here's what will help",
+    subtext:
+      "You're at a stage where the right stories, tools, and resources can make a real difference. We've curated episodes and resources specifically for what you're going through.",
+    ctaLabel: "Browse matching episodes →",
+    ctaHref: "/episodes",
+    secondaryLabel: "Explore all resources",
+  },
+  nurture: {
+    headline: "Great — you're already thinking ahead",
+    subtext:
+      "You're in exploration mode, which is a great place to be. We've put together a selection of episodes that will give you real insights and help you build clarity for what's next.",
+    ctaLabel: "Start exploring episodes →",
+    ctaHref: "/episodes",
+    secondaryLabel: "Browse all episodes",
+  },
+};
+
+async function getMatchingEpisodes(crisisCategory: string) {
+  return prisma.episode.findMany({
+    where: {
+      publishStatus: "published",
+      crisisCategory,
+    },
+    orderBy: { captivatePublishedAt: "desc" },
+    take: 3,
+    select: {
+      id: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      guestName: true,
+      thumbnailUrl: true,
+      episodeNumber: true,
+      durationSeconds: true,
+    },
+  });
+}
+
+async function getAffiliateUrl(
+  crisisCategory: string,
+  urgency: string
+): Promise<string | null> {
+  const route = await prisma.affiliateRoute.findFirst({
+    where: {
+      crisisCategory,
+      isActive: true,
+      OR: [{ urgencyLevel: urgency }, { urgencyLevel: "any" }],
+    },
+    orderBy: { priority: "asc" },
+  });
+  return route?.affiliateUrl ?? null;
+}
+
+export default async function ResultPage({
+  searchParams,
+}: {
+  searchParams: { type?: string; category?: string; urgency?: string };
+}) {
+  const resultType = searchParams.type ?? "resource";
+  const crisisCategory = searchParams.category ?? "career";
+  const urgency = searchParams.urgency ?? "exploring";
+
+  const content = RESULT_CONTENT[resultType] ?? RESULT_CONTENT.resource;
+  const categoryLabel = CATEGORY_LABELS[crisisCategory] ?? crisisCategory;
+
+  const [episodes, affiliateUrl] = await Promise.all([
+    getMatchingEpisodes(crisisCategory),
+    getAffiliateUrl(crisisCategory, urgency),
+  ]);
+
+  const ctaHref =
+    resultType === "coach_referral" && affiliateUrl
+      ? affiliateUrl
+      : content.ctaHref;
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <div className="bg-brand-purple">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="text-white font-bold text-lg">
+            Limitless <span className="text-brand-gold">Living</span>
+          </Link>
+          <span className="text-gray-300 text-sm">Your results</span>
+        </div>
+      </div>
+
+      {/* Gold progress bar — complete */}
+      <div className="h-1 bg-brand-gold" />
+
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        {/* Result header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 bg-brand-gold bg-opacity-10 text-brand-gold-dark text-xs font-semibold px-4 py-2 rounded-full mb-4 uppercase tracking-widest">
+            Your personalised result
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-3">
+            {content.headline}
+          </h1>
+          <p className="text-gray-600 text-sm leading-relaxed mb-2">
+            Based on what you shared about{" "}
+            <span className="font-medium text-brand-purple">
+              {categoryLabel}
+            </span>
+            , here&apos;s what we recommend.
+          </p>
+          <p className="text-gray-500 text-sm leading-relaxed">
+            {content.subtext}
+          </p>
+        </div>
+
+        {/* Primary CTA */}
+        <div className="bg-brand-purple rounded-2xl p-6 text-center mb-8">
+          
+            href={ctaHref}
+            className="btn-primary w-full block text-center mb-3"
+            target={ctaHref.startsWith("http") ? "_blank" : undefined}
+            rel={ctaHref.startsWith("http") ? "noopener noreferrer" : undefined}
+          >
+            {content.ctaLabel}
+          </a>
+          <Link
+            href="/episodes"
+            className="text-sm text-gray-300 hover:text-white transition-colors"
+          >
+            {content.secondaryLabel}
+          </Link>
+        </div>
+
+        {/* Matching episodes */}
+        {episodes.length > 0 && (
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              Episodes matched to your situation
+            </h2>
+            <div className="space-y-3">
+              {episodes.map((ep) => {
+                const title = ep.titleYoutube ?? ep.titleOriginal;
+                const duration = ep.durationSeconds
+                  ? `${Math.floor(ep.durationSeconds / 60)} min`
+                  : null;
+                return (
+                  <Link
+                    key={ep.id}
+                    href={`/episodes/${ep.id}`}
+                    className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-gold hover:shadow-sm transition-all group"
+                  >
+                    {ep.thumbnailUrl ? (
+                      <img
+                        src={ep.thumbnailUrl}
+                        alt={title}
+                        className="w-20 h-14 object-cover rounded-lg flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-20 h-14 bg-brand-purple rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-brand-gold text-xs font-bold">
+                          LLS
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-brand-purple transition-colors">
+                        {title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                        {ep.guestName && <span>{ep.guestName}</span>}
+                        {duration && <span>{duration}</span>}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="text-center mt-6">
+              <Link
+                href={`/episodes?category=${crisisCategory}`}
+                className="text-sm text-brand-purple font-medium hover:text-brand-gold transition-colors"
+              >
+                View all {categoryLabel} episodes →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state — no matching episodes yet */}
+        {episodes.length === 0 && (
+          <div className="text-center py-8 bg-gray-50 rounded-xl">
+            <p className="text-sm text-gray-500 mb-3">
+              We&apos;re adding more episodes soon.
+            </p>
+            <Link href="/episodes" className="text-sm text-brand-purple font-medium hover:underline">
+              Browse all episodes →
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+Step 5 — Seed the affiliate routes table with BetterHelp as the default high-urgency route.
+
+File to edit: artifacts/nextjs-app/prisma/seed.ts
+
+Find this exact string:
+  console.log("Seeded 6 crisis category CTAs");
+}
+
+Replace it with:
+  console.log("Seeded 6 crisis category CTAs");
+
+  // Seed affiliate routes — BetterHelp for high urgency across all categories
+  const categories = ["grief", "relationship", "health", "financial", "spiritual", "career"];
+  for (const category of categories) {
+    await prisma.affiliateRoute.upsert({
+      where: {
+        id: `betterhelp-${category}-crisis`,
+      },
+      update: {},
+      create: {
+        id: `betterhelp-${category}-crisis`,
+        crisisCategory: category,
+        urgencyLevel: "crisis",
+        affiliateName: "BetterHelp",
+        affiliateUrl: "https://www.betterhelp.com",
+        priority: 1,
+        isActive: true,
+      },
+    });
+    await prisma.affiliateRoute.upsert({
+      where: {
+        id: `betterhelp-${category}-struggling`,
+      },
+      update: {},
+      create: {
+        id: `betterhelp-${category}-struggling`,
+        crisisCategory: category,
+        urgencyLevel: "struggling",
+        affiliateName: "BetterHelp",
+        affiliateUrl: "https://www.betterhelp.com",
+        priority: 1,
+        isActive: true,
+      },
+    });
+  }
+  console.log("Seeded affiliate routes");
+}
+
+Then run:
+pnpm --filter @workspace/nextjs-app run db:seed
+
+
+Verification: Confirm that:
+1. app/api/assessment/route.ts was created
+2. app/assessment/page.tsx was created with 4 steps — category, duration, urgency, email
+3. app/assessment/result/page.tsx was created with three result types (coach_referral, resource, nurture)
+4. The seed ran successfully and printed "Seeded affiliate routes"
+5. TypeScript typecheck passes with zero errors
+6. Navigating to /assessment shows the first question with 6 category options
+7. Completing all 4 steps and submitting redirects to /assessment/result with the correct result type displayed

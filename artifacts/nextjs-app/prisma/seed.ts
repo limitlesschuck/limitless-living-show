@@ -69,6 +69,42 @@ async function main() {
   }
 
   console.log("Seeded 6 crisis category CTAs");
+
+  // Seed affiliate routes — BetterHelp for high urgency across all categories
+  const categories = ["grief", "relationship", "health", "financial", "spiritual", "career"];
+  for (const category of categories) {
+    await prisma.affiliateRoute.upsert({
+      where: {
+        id: `betterhelp-${category}-crisis`,
+      },
+      update: {},
+      create: {
+        id: `betterhelp-${category}-crisis`,
+        crisisCategory: category,
+        urgencyLevel: "crisis",
+        affiliateName: "BetterHelp",
+        affiliateUrl: "https://www.betterhelp.com",
+        priority: 1,
+        isActive: true,
+      },
+    });
+    await prisma.affiliateRoute.upsert({
+      where: {
+        id: `betterhelp-${category}-struggling`,
+      },
+      update: {},
+      create: {
+        id: `betterhelp-${category}-struggling`,
+        crisisCategory: category,
+        urgencyLevel: "struggling",
+        affiliateName: "BetterHelp",
+        affiliateUrl: "https://www.betterhelp.com",
+        priority: 1,
+        isActive: true,
+      },
+    });
+  }
+  console.log("Seeded affiliate routes");
 }
 
 main()
