@@ -1,61 +1,82 @@
-const CAPTIVATE_API_BASE = "https://api.captivate.fm";
+import Parser from "rss-parser";
+
+const RSS_FEED_URL = "https://feeds.captivate.fm/limitlessliving/";
 
 export interface CaptivateEpisode {
   id: string;
   title: string;
-  shownotes: string;
-  duration: number;
-  published_at: string;
-  media_url: string;
-  episode_art?: string;
-  status: string;
+  description: string;
+  audioUrl: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number | null;
+  publishedAt: string | null;
+  episodeNumber: number | null;
+  season: number | null;
+  link: string | null;
 }
 
-interface CaptivateAuthResponse {
-  token: {
-    access_token: string;
+type CustomItem = {
+  guid: string;
+  title: string;
+  contentSnippet?: string;
+  content?: string;
+  enclosure?: { url: string };
+  itunes?: {
+    image?: string;
+    duration?: string;
+    episode?: string;
+    season?: string;
   };
-}
+  pubDate?: string;
+  link?: string;
+};
 
-interface CaptivateEpisodesResponse {
-  episodes: CaptivateEpisode[];
-}
-
-async function getAccessToken(): Promise<string> {
-  const userId = process.env.CAPTIVATE_USER_ID;
-  const apiKey = process.env.CAPTIVATE_API_KEY;
-
-  if (!userId || !apiKey) {
-    throw new Error("CAPTIVATE_USER_ID or CAPTIVATE_API_KEY not set");
+function parseDurationToSeconds(duration: string | undefined): number | null {
+  if (!duration) return null;
+  const parts = duration.split(":").map(Number);
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
   }
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  }
+  return null;
+}
 
-  const res = await fetch(`${CAPTIVATE_API_BASE}/authenticate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: userId, token: apiKey }),
+function extractGuestName(title: string): string | null {
+  const withMatch = title.match(
+    /\bwith\s+([A-Z][a-z]+(?:\s+[A-Z][a-z\-]+)*)\s*$/i
+  );
+  if (withMatch) return withMatch[1];
+  return null;
+}
+
+export async function fetchCaptivateEpisodes(): Promise<CaptivateEpisode[]> {
+  const parser = new Parser<Record<string, unknown>, CustomItem>({
+    customFields: {
+      item: [
+        ["itunes:image", "itunes.image"],
+        ["itunes:duration", "itunes.duration"],
+        ["itunes:episode", "itunes.episode"],
+        ["itunes:season", "itunes.season"],
+      ],
+    },
   });
 
-  if (!res.ok) {
-    throw new Error(`Captivate auth failed: ${res.status}`);
-  }
+  const feed = await parser.parseURL(RSS_FEED_URL);
 
-  const data = (await res.json()) as CaptivateAuthResponse;
-  return data.token.access_token;
+  return feed.items.map((item) => ({
+    id: item.guid ?? item.link ?? item.title ?? "",
+    title: item.title ?? "Untitled",
+    description: item.contentSnippet ?? item.content ?? "",
+    audioUrl: item.enclosure?.url ?? "",
+    thumbnailUrl: item.itunes?.image ?? null,
+    durationSeconds: parseDurationToSeconds(item.itunes?.duration),
+    publishedAt: item.pubDate ?? null,
+    episodeNumber: item.itunes?.episode ? parseInt(item.itunes.episode) : null,
+    season: item.itunes?.season ? parseInt(item.itunes.season) : null,
+    link: item.link ?? null,
+  }));
 }
 
-export async function fetchCaptivateEpisodes(
-  showId: string
-): Promise<CaptivateEpisode[]> {
-  const accessToken = await getAccessToken();
-
-  const res = await fetch(`${CAPTIVATE_API_BASE}/shows/${showId}/episodes`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Captivate episodes fetch failed: ${res.status}`);
-  }
-
-  const data = (await res.json()) as CaptivateEpisodesResponse;
-  return data.episodes ?? [];
-}
+export { extractGuestName };
