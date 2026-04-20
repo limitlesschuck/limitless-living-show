@@ -1,0 +1,257 @@
+## Prompt 9
+
+Fix the Claude model string, add credit error handling, and build the publish trigger that writes approved episodes to Google Sheets and fires a Make.com webhook.
+
+Step 1 — Update the Claude model and add credit error handling.
+
+File to edit: artifacts/nextjs-app/lib/claude.ts
+
+Find this exact string:
+const CLAUDE_MODEL = "claude-sonnet-4-5-20250929";
+
+Replace it with:
+const CLAUDE_MODEL = "claude-sonnet-4-6";
+
+Then find this exact string:
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Claude API error: ${res.status} — ${error}`);
+  }
+
+Replace it with:
+  if (!res.ok) {
+    if (res.status === 529 || res.status === 402) {
+      throw new Error(
+        "Anthropic API credit limit reached — please add credits at console.anthropic.com"
+      );
+    }
+    if (res.status === 401) {
+      throw new Error(
+        "Anthropic API key is invalid — check CLAUDE_API_KEY in Replit Secrets"
+      );
+    }
+    const error = await res.text();
+    throw new Error(`Claude API error: ${res.status} — ${error}`);
+  }
+
+
+Step 2 — Add Google Sheets and Make.com secrets to Replit.
+
+In the Replit Secrets panel, add these three secrets (leave values blank for now — they will be filled in when ready):
+- GOOGLE_SHEETS_WEBHOOK_URL  (the Make.com webhook URL that writes to Google Sheets)
+- MAKE_YOUTUBE_WEBHOOK_URL   (the Make.com webhook URL that triggers YouTube upload)
+- GOOGLE_SHEETS_ID           (the Google Sheet ID from the sheet URL)
+
+
+Step 3 — Create the publish trigger API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/publish/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+interface WebhookPayload {
+  episodeId: string;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  titlePodcast: string | null;
+  descriptionYoutube: string | null;
+  descriptionWebsite: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+  tags: string[];
+  audioUrl: string | null;
+  thumbnailUrl: string | null;
+  publishedAt: string;
+}
+
+async function triggerWebhook(
+  url: string,
+  payload: WebhookPayload
+): Promise<{ ok: boolean; status: number; body: string }> {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.text();
+    return { ok: res.ok, status: res.status, body };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return { ok: false, status: 0, body: message };
+  }
+}
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (episode.publishStatus !== "approved") {
+    return NextResponse.json(
+      { error: "Episode must be in approved status before publishing" },
+      { status: 400 }
+    );
+  }
+
+  const payload: WebhookPayload = {
+    episodeId: episode.id,
+    titleOriginal: episode.titleOriginal,
+    titleYoutube: episode.titleYoutube,
+    titlePodcast: episode.titlePodcast,
+    descriptionYoutube: episode.descriptionYoutube,
+    descriptionWebsite: episode.descriptionWebsite,
+    guestName: episode.guestName,
+    crisisCategory: episode.crisisCategory,
+    tags: episode.tags,
+    audioUrl: episode.audioUrl,
+    thumbnailUrl: episode.thumbnailUrl,
+    publishedAt: new Date().toISOString(),
+  };
+
+  const results: Record<string, { ok: boolean; status: number; body: string }> =
+    {};
+
+  const sheetsUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  const makeUrl = process.env.MAKE_YOUTUBE_WEBHOOK_URL;
+
+  if (sheetsUrl) {
+    results.googleSheets = await triggerWebhook(sheetsUrl, payload);
+  } else {
+    results.googleSheets = {
+      ok: false,
+      status: 0,
+      body: "GOOGLE_SHEETS_WEBHOOK_URL not set",
+    };
+  }
+
+  if (makeUrl) {
+    results.makeYoutube = await triggerWebhook(makeUrl, payload);
+  } else {
+    results.makeYoutube = {
+      ok: false,
+      status: 0,
+      body: "MAKE_YOUTUBE_WEBHOOK_URL not set",
+    };
+  }
+
+  const allOk = Object.values(results).every((r) => r.ok);
+
+  await prisma.publishLog.create({
+    data: {
+      episodeId: episode.id,
+      triggeredById: session.user.id,
+      platform: "youtube",
+      status: allOk ? "success" : "failed",
+      webhookPayload: payload as unknown as Record<string, unknown>,
+      responseBody: results as unknown as Record<string, unknown>,
+    },
+  });
+
+  if (allOk) {
+    await prisma.episode.update({
+      where: { id: episode.id },
+      data: { publishStatus: "published", publishedAt: new Date() },
+    });
+  }
+
+  return NextResponse.json({
+    success: allOk,
+    results,
+    message: allOk
+      ? "Episode published — webhooks fired successfully"
+      : "One or more webhooks failed — check results for details",
+  });
+}
+
+
+Step 4 — Add the Publish button to the episode detail page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+Replace it with:
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+Then find this exact string:
+  async function handleGenerate() {
+
+Add the following function immediately before it:
+  async function handlePublish() {
+    setPublishing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setMessage({ type: "success", text: data.message });
+      loadEpisode();
+    } else if (res.status === 400) {
+      setMessage({
+        type: "error",
+        text: "Episode must be set to approved status before publishing",
+      });
+    } else {
+      setMessage({
+        type: "error",
+        text: data.message ?? "Publish failed — check webhook configuration",
+      });
+    }
+    setPublishing(false);
+  }
+
+Then find this exact string:
+            <button
+              onClick={() => router.push("/admin/episodes")}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+
+Replace it with:
+            <button
+              onClick={() => router.push("/admin/episodes")}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            {episode.publishStatus === "approved" && (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                {publishing ? "Publishing..." : "Publish to YouTube"}
+              </button>
+            )}
+
+
+Verification: Confirm that:
+1. artifacts/nextjs-app/lib/claude.ts now uses claude-sonnet-4-6 as the model
+2. The credit error handling (529, 402, 401 status codes) is in place in lib/claude.ts
+3. artifacts/nextjs-app/app/api/admin/episodes/[id]/publish/route.ts was created
+4. The episode detail page now has the publishing useState and handlePublish function
+5. The Publish to YouTube button appears on the episode detail page when status is set to approved
+6. TypeScript typecheck passes with zero errors

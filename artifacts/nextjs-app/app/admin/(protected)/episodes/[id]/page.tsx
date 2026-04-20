@@ -41,6 +41,7 @@ export default function EpisodeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -99,6 +100,31 @@ export default function EpisodeDetailPage() {
       setMessage({ type: "error", text: "Save failed" });
     }
     setSaving(false);
+  }
+
+  async function handlePublish() {
+    setPublishing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.success) {
+      setMessage({ type: "success", text: data.message });
+      loadEpisode();
+    } else if (res.status === 400) {
+      setMessage({
+        type: "error",
+        text: "Episode must be set to approved status before publishing",
+      });
+    } else {
+      setMessage({
+        type: "error",
+        text: data.message ?? "Publish failed — check webhook configuration",
+      });
+    }
+    setPublishing(false);
   }
 
   async function handleGenerate() {
@@ -365,6 +391,15 @@ export default function EpisodeDetailPage() {
             >
               Cancel
             </button>
+            {episode.publishStatus === "approved" && (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                {publishing ? "Publishing..." : "Publish to YouTube"}
+              </button>
+            )}
           </div>
         </div>
       </div>
