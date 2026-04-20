@@ -1,0 +1,105 @@
+## Prompt 16
+
+Fix the Systeme.io sync to use tag IDs instead of tag names, and update the API key header format.
+
+File to edit: artifacts/nextjs-app/app/api/assessment/route.ts
+
+Find this exact string:
+async function syncToSysteme(params: {
+  email: string;
+  firstName: string;
+  crisisCategory: string;
+  urgency: string;
+  resultType: string;
+}): Promise<boolean> {
+  if (!SYSTEME_API_KEY) return false;
+
+  try {
+    const tag = `lls-${params.crisisCategory}-${params.urgency}`;
+    const res = await fetch(`${SYSTEME_API_URL}/contacts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": SYSTEME_API_KEY,
+      },
+      body: JSON.stringify({
+        email: params.email,
+        firstName: params.firstName,
+        fields: [
+          { slug: "crisis_category", value: params.crisisCategory },
+          { slug: "urgency_level", value: params.urgency },
+          { slug: "result_type", value: params.resultType },
+        ],
+        tags: [tag, "lls-assessment"],
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+Replace it with:
+const SYSTEME_TAG_IDS: Record<string, number> = {
+  "lls-assessment": 1975330,
+  "lls-grief": 1975331,
+  "lls-relationship": 1975332,
+  "lls-health": 1975333,
+  "lls-financial": 1975334,
+  "lls-spiritual": 1975335,
+  "lls-career": 1975336,
+  "lls-coach-referral": 1975337,
+};
+
+async function syncToSysteme(params: {
+  email: string;
+  firstName: string;
+  crisisCategory: string;
+  urgency: string;
+  resultType: string;
+}): Promise<boolean> {
+  if (!SYSTEME_API_KEY) return false;
+
+  const tagIds: number[] = [SYSTEME_TAG_IDS["lls-assessment"]];
+
+  const categoryTagId = SYSTEME_TAG_IDS[`lls-${params.crisisCategory}`];
+  if (categoryTagId) tagIds.push(categoryTagId);
+
+  if (params.resultType === "coach_referral") {
+    tagIds.push(SYSTEME_TAG_IDS["lls-coach-referral"]);
+  }
+
+  try {
+    const res = await fetch(`${SYSTEME_API_URL}/contacts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": SYSTEME_API_KEY,
+      },
+      body: JSON.stringify({
+        email: params.email,
+        firstName: params.firstName || undefined,
+        tagIds,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      console.error("Systeme.io sync failed:", res.status, error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error("Systeme.io sync error:", err);
+    return false;
+  }
+}
+
+
+Verification: Confirm that:
+1. The SYSTEME_TAG_IDS map is present with all 8 tag IDs
+2. The syncToSysteme function now sends tagIds as an array of numbers
+3. The coach_referral tag is added when resultType is coach_referral
+4. TypeScript typecheck passes with zero errors
+5. Run a new test assessment and confirm the contact appears in the new Systeme.io account with the correct tags

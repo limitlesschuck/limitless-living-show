@@ -29,6 +29,17 @@ function computeResultType(score: number): string {
   return "nurture";
 }
 
+const SYSTEME_TAG_IDS: Record<string, number> = {
+  "lls-assessment": 1975330,
+  "lls-grief": 1975331,
+  "lls-relationship": 1975332,
+  "lls-health": 1975333,
+  "lls-financial": 1975334,
+  "lls-spiritual": 1975335,
+  "lls-career": 1975336,
+  "lls-coach-referral": 1975337,
+};
+
 async function syncToSysteme(params: {
   email: string;
   firstName: string;
@@ -38,8 +49,16 @@ async function syncToSysteme(params: {
 }): Promise<boolean> {
   if (!SYSTEME_API_KEY) return false;
 
+  const tagIds: number[] = [SYSTEME_TAG_IDS["lls-assessment"]];
+
+  const categoryTagId = SYSTEME_TAG_IDS[`lls-${params.crisisCategory}`];
+  if (categoryTagId) tagIds.push(categoryTagId);
+
+  if (params.resultType === "coach_referral") {
+    tagIds.push(SYSTEME_TAG_IDS["lls-coach-referral"]);
+  }
+
   try {
-    const tag = `lls-${params.crisisCategory}-${params.urgency}`;
     const res = await fetch(`${SYSTEME_API_URL}/contacts`, {
       method: "POST",
       headers: {
@@ -48,17 +67,20 @@ async function syncToSysteme(params: {
       },
       body: JSON.stringify({
         email: params.email,
-        firstName: params.firstName,
-        fields: [
-          { slug: "crisis_category", value: params.crisisCategory },
-          { slug: "urgency_level", value: params.urgency },
-          { slug: "result_type", value: params.resultType },
-        ],
-        tags: [tag, "lls-assessment"],
+        firstName: params.firstName || undefined,
+        tagIds,
       }),
     });
-    return res.ok;
-  } catch {
+
+    if (!res.ok) {
+      const error = await res.text();
+      console.error("Systeme.io sync failed:", res.status, error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error("Systeme.io sync error:", err);
     return false;
   }
 }
