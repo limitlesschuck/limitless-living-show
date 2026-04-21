@@ -86,6 +86,7 @@ async function main() {
         affiliateUrl: "https://www.betterhelp.com",
         priority: 1,
         isActive: true,
+        isDefault: false,
       },
     });
     await prisma.affiliateRoute.upsert({
@@ -104,6 +105,20 @@ async function main() {
       },
     });
   }
+  await prisma.affiliateRoute.upsert({
+    where: { id: "betterhelp-default" },
+    update: {},
+    create: {
+      id: "betterhelp-default",
+      crisisCategory: "any",
+      urgencyLevel: "any",
+      affiliateName: "BetterHelp",
+      affiliateUrl: "https://www.betterhelp.com",
+      priority: 99,
+      isActive: true,
+      isDefault: true,
+    },
+  });
   console.log("Seeded affiliate routes");
 }
 

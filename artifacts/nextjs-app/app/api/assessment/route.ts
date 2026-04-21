@@ -143,7 +143,13 @@ async function getAffiliateRoute(
     },
     orderBy: { priority: "asc" },
   });
-  return route?.id ?? null;
+  if (route) return route.id;
+
+  const defaultRoute = await prisma.affiliateRoute.findFirst({
+    where: { isDefault: true, isActive: true },
+    orderBy: { priority: "asc" },
+  });
+  return defaultRoute?.id ?? null;
 }
 
 export async function POST(req: NextRequest) {

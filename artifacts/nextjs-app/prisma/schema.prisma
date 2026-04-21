@@ -153,6 +153,7 @@ model AffiliateRoute {
   affiliateUrl    String   @db.Text
   priority        Int      @default(1)
   isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
   updatedAt       DateTime @updatedAt
 
   leads Lead[]
