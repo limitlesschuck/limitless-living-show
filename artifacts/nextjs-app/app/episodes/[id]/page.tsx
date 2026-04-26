@@ -105,10 +105,10 @@ export default async function EpisodeDetailPage({
               className="w-full h-full"
             />
           </div>
-        ) : (episode.youtubeThumbnailUrl ?? episode.coverArtUrl ?? episode.thumbnailUrl) ? (
+        ) : (episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl) ? (
           <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-brand-purple-dark">
             <img
-              src={(episode.youtubeThumbnailUrl ?? episode.coverArtUrl ?? episode.thumbnailUrl)!}
+              src={(episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl)!}
               alt={title}
               className="w-full h-full object-cover"
             />

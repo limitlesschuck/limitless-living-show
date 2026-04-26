@@ -116,7 +116,7 @@ export default async function EpisodesPage({
                 : null;
               const duration = formatDuration(ep.durationSeconds);
               const displayImage =
-                ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl;
+                ep.youtubeThumbnailUrl || ep.coverArtUrl || ep.thumbnailUrl;
 
               return (
                 <Link

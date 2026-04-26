@@ -1,5 +1,8 @@
 {
-  "/episodes/[id]/page": "app/episodes/[id]/page.js",
   "/page": "app/page.js",
+  "/episodes/[id]/page": "app/episodes/[id]/page.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/api/admin/upload/route": "app/api/admin/upload/route.js",
+  "/api/admin/episodes/[id]/route": "app/api/admin/episodes/[id]/route.js",
   "/admin/(protected)/episodes/[id]/page": "app/admin/(protected)/episodes/[id]/page.js"
 }
