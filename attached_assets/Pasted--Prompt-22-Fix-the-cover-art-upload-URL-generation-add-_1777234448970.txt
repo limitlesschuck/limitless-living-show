@@ -1,0 +1,223 @@
+## Prompt 22
+
+Fix the cover art upload URL generation, add YouTube thumbnail upload, and create the episode-thumbnails public folder.
+
+Step 1 — Fix the upload URL generation in the upload API route.
+
+File to edit: artifacts/nextjs-app/app/api/admin/upload/route.ts
+
+Find this exact string:
+  const basePath = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "";
+  const publicUrl = `${basePath}/${folder}/${filename}`;
+
+  return NextResponse.json({ url: publicUrl, filename });
+
+Replace it with:
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
+    ?? process.env.NEXTAUTH_URL?.replace(/\/$/, "").replace(/\/api\/auth$/, "").replace(/\/nextjs-app$/, "")
+    ?? "";
+  const publicUrl = `${appUrl}/nextjs-app/${folder}/${filename}`;
+
+  return NextResponse.json({ url: publicUrl, filename });
+
+
+Step 2 — Add NEXT_PUBLIC_APP_URL to Replit Secrets.
+
+In the Replit Secrets panel, add:
+- Key: NEXT_PUBLIC_APP_URL
+- Value: https://a01fa7fa-de6e-4e0d-b5e8-8747442dc22a-00-14xtek4hs8io0.kirk.replit.dev
+
+This is the base URL of your Replit dev environment without any path suffix. When you move to production, update this to your custom domain.
+
+
+Step 3 — Create the episode-thumbnails folder in public.
+
+Run this command in the shell:
+mkdir -p artifacts/nextjs-app/public/episode-thumbnails && echo "Done"
+
+
+Step 4 — Update the episode edit page to use upload for YouTube thumbnail instead of text input.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [resyncing, setResyncing] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
+
+Replace it with:
+  const [resyncing, setResyncing] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+
+Find this exact string:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: `Cover art uploaded — URL: ${data.url}` });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+Replace it with:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: "Cover art uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+  async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-thumbnails");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, youtubeThumbnailUrl: data.url }));
+      setMessage({ type: "success", text: "YouTube thumbnail uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingThumb(false);
+  }
+
+Find this exact string:
+            <Field label="YouTube thumbnail URL">
+              <input
+                type="text"
+                value={form.youtubeThumbnailUrl}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, youtubeThumbnailUrl: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste YouTube thumbnail URL"
+              />
+            </Field>
+
+Replace it with:
+            <Field label="YouTube thumbnail">
+              {form.youtubeThumbnailUrl ? (
+                <div>
+                  <img
+                    src={form.youtubeThumbnailUrl}
+                    alt="YouTube thumbnail"
+                    className="w-full rounded-lg border border-gray-200 mb-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, youtubeThumbnailUrl: "" }))}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-brand-purple transition-colors">
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-gray-600">
+                      {uploadingThumb ? "Uploading..." : "Click to upload YouTube thumbnail"}
+                    </p>
+                    <p className="text-xs text-gray-400">JPG, PNG, WebP — 16:9 ratio</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleThumbnailUpload}
+                    className="hidden"
+                    disabled={uploadingThumb}
+                  />
+                </label>
+              )}
+            </Field>
+
+
+Step 5 — Also fix the upload URL in the new episode creation page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/new/page.tsx
+
+Find this exact string:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+Replace it with:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: "Cover art uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+
+Verification: Confirm that:
+1. NEXT_PUBLIC_APP_URL secret has been added to Replit Secrets
+2. The upload route now uses NEXT_PUBLIC_APP_URL to construct the public URL
+3. The episode-thumbnails folder exists in public/
+4. The episode edit page has a YouTube thumbnail upload zone (not a text field)
+5. Uploading a cover art image returns a URL in the format https://YOUR-REPLIT-URL/nextjs-app/episode-art/filename.jpg
+6. Uploading a YouTube thumbnail saves to episode-thumbnails/ folder
+7. TypeScript typecheck passes with zero errors
+8. After uploading cover art on an existing episode and saving, the homepage shows the new image instead of the Captivate RSS thumbnail

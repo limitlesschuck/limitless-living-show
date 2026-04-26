@@ -53,6 +53,7 @@ export default function EpisodeDetailPage() {
   const [testing, setTesting] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [uploadingArt, setUploadingArt] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -157,11 +158,32 @@ export default function EpisodeDetailPage() {
     const data = await res.json();
     if (res.ok) {
       setForm((f) => ({ ...f, coverArtUrl: data.url }));
-      setMessage({ type: "success", text: `Cover art uploaded — URL: ${data.url}` });
+      setMessage({ type: "success", text: "Cover art uploaded successfully" });
     } else {
       setMessage({ type: "error", text: data.error ?? "Upload failed" });
     }
     setUploadingArt(false);
+  }
+
+  async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-thumbnails");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, youtubeThumbnailUrl: data.url }));
+      setMessage({ type: "success", text: "YouTube thumbnail uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingThumb(false);
   }
 
   async function handleSendToMake() {
@@ -540,16 +562,39 @@ export default function EpisodeDetailPage() {
               )}
             </Field>
 
-            <Field label="YouTube thumbnail URL">
-              <input
-                type="text"
-                value={form.youtubeThumbnailUrl}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, youtubeThumbnailUrl: e.target.value }))
-                }
-                className="input"
-                placeholder="Paste YouTube thumbnail URL"
-              />
+            <Field label="YouTube thumbnail">
+              {form.youtubeThumbnailUrl ? (
+                <div>
+                  <img
+                    src={form.youtubeThumbnailUrl}
+                    alt="YouTube thumbnail"
+                    className="w-full rounded-lg border border-gray-200 mb-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, youtubeThumbnailUrl: "" }))}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-brand-purple transition-colors">
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-gray-600">
+                      {uploadingThumb ? "Uploading..." : "Click to upload YouTube thumbnail"}
+                    </p>
+                    <p className="text-xs text-gray-400">JPG, PNG, WebP — 16:9 ratio</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleThumbnailUpload}
+                    className="hidden"
+                    disabled={uploadingThumb}
+                  />
+                </label>
+              )}
             </Field>
 
             {episode.thumbnailUrl && (

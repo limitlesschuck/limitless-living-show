@@ -41,8 +41,10 @@ export async function POST(req: NextRequest) {
   const bytes = await file.arrayBuffer();
   await writeFile(filePath, Buffer.from(bytes));
 
-  const basePath = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "";
-  const publicUrl = `${basePath}/${folder}/${filename}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
+    ?? process.env.NEXTAUTH_URL?.replace(/\/$/, "").replace(/\/api\/auth$/, "").replace(/\/nextjs-app$/, "")
+    ?? "";
+  const publicUrl = `${appUrl}/nextjs-app/${folder}/${filename}`;
 
   return NextResponse.json({ url: publicUrl, filename });
 }

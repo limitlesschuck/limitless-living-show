@@ -38,6 +38,7 @@ export default function NewEpisodePage() {
     const data = await res.json();
     if (res.ok) {
       setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: "Cover art uploaded successfully" });
     } else {
       setMessage({ type: "error", text: data.error ?? "Upload failed" });
     }
