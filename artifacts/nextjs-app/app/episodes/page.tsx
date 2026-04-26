@@ -29,6 +29,8 @@ async function getEpisodes(category?: string) {
       guestName: true,
       crisisCategory: true,
       thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
       youtubeId: true,
       durationSeconds: true,
       captivatePublishedAt: true,
@@ -113,6 +115,8 @@ export default async function EpisodesPage({
                 ? CATEGORY_LABELS[ep.crisisCategory]
                 : null;
               const duration = formatDuration(ep.durationSeconds);
+              const displayImage =
+                ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl;
 
               return (
                 <Link
@@ -121,9 +125,9 @@ export default async function EpisodesPage({
                   className="group episode-card block"
                 >
                   <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
-                    {ep.thumbnailUrl ? (
+                    {displayImage ? (
                       <img
-                        src={ep.thumbnailUrl}
+                        src={displayImage}
                         alt={title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />

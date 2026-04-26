@@ -1,0 +1,408 @@
+## Prompt 21
+
+Update all public-facing pages to use youtubeThumbnailUrl when available, falling back to coverArtUrl then thumbnailUrl. Apply this priority consistently across the homepage, episodes listing, episode detail page, and public API routes.
+
+Step 1 — Update the public episodes API to return all three thumbnail fields.
+
+File to edit: artifacts/nextjs-app/app/api/episodes/route.ts
+
+Find this exact string:
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        descriptionWebsite: true,
+        guestName: true,
+        crisisCategory: true,
+        thumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+        publishedAt: true,
+      },
+
+Replace it with:
+      select: {
+        id: true,
+        titleOriginal: true,
+        titleYoutube: true,
+        descriptionWebsite: true,
+        guestName: true,
+        crisisCategory: true,
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+        publishedAt: true,
+      },
+
+
+Step 2 — Update the homepage to select and use all three thumbnail fields.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Find this exact string:
+        thumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+    prisma.episode.findMany({
+      where: { publishStatus: "published", youtubeId: { not: null } },
+
+Replace it with:
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+    prisma.episode.findMany({
+      where: { publishStatus: "published", youtubeId: { not: null } },
+
+Find this exact string:
+        thumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+  ]);
+
+Replace it with:
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+  ]);
+
+Now update the EpisodeCard interface to include the new fields.
+
+Find this exact string:
+    thumbnailUrl: string | null;
+    episodeNumber: number | null;
+    durationSeconds: number | null;
+    captivatePublishedAt: Date | null | string;
+  };
+  large?: boolean;
+
+Replace it with:
+    thumbnailUrl: string | null;
+    coverArtUrl: string | null;
+    youtubeThumbnailUrl: string | null;
+    episodeNumber: number | null;
+    durationSeconds: number | null;
+    captivatePublishedAt: Date | null | string;
+  };
+  large?: boolean;
+
+Now update the EpisodeCard component to use the thumbnail priority. There are two img tags inside EpisodeCard — one for the large card and one for the small card. Update both.
+
+Find this exact string:
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+
+Replace it with:
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+  const displayImage =
+    episode.youtubeThumbnailUrl ??
+    episode.coverArtUrl ??
+    episode.thumbnailUrl;
+
+Now find this exact string (large card image):
+            {episode.thumbnailUrl ? (
+              <img
+                src={episode.thumbnailUrl}
+                alt={title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                <span className="text-brand-gold text-4xl font-bold">LLS</span>
+              </div>
+            )}
+
+Replace it with:
+            {displayImage ? (
+              <img
+                src={displayImage}
+                alt={title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                <span className="text-brand-gold text-4xl font-bold">LLS</span>
+              </div>
+            )}
+
+Now find this exact string (small card image):
+        {episode.thumbnailUrl ? (
+          <img
+            src={episode.thumbnailUrl}
+            alt={title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+            <span className="text-brand-gold text-2xl font-bold">LLS</span>
+          </div>
+        )}
+
+Replace it with:
+        {displayImage ? (
+          <img
+            src={displayImage}
+            alt={title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+            <span className="text-brand-gold text-2xl font-bold">LLS</span>
+          </div>
+        )}
+
+
+Step 3 — Update the episodes listing page.
+
+File to edit: artifacts/nextjs-app/app/episodes/page.tsx
+
+Find this exact string:
+    select: {
+      id: true,
+      episodeNumber: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      descriptionWebsite: true,
+      guestName: true,
+      crisisCategory: true,
+      thumbnailUrl: true,
+      youtubeId: true,
+      durationSeconds: true,
+      captivatePublishedAt: true,
+    },
+
+Replace it with:
+    select: {
+      id: true,
+      episodeNumber: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      descriptionWebsite: true,
+      guestName: true,
+      crisisCategory: true,
+      thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
+      youtubeId: true,
+      durationSeconds: true,
+      captivatePublishedAt: true,
+    },
+
+Find this exact string:
+              const title = ep.titleYoutube ?? ep.titleOriginal;
+              const category = ep.crisisCategory
+                ? CATEGORY_LABELS[ep.crisisCategory]
+                : null;
+              const duration = formatDuration(ep.durationSeconds);
+
+Replace it with:
+              const title = ep.titleYoutube ?? ep.titleOriginal;
+              const category = ep.crisisCategory
+                ? CATEGORY_LABELS[ep.crisisCategory]
+                : null;
+              const duration = formatDuration(ep.durationSeconds);
+              const displayImage =
+                ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl;
+
+Find this exact string:
+                    {ep.thumbnailUrl ? (
+                      <img
+                        src={ep.thumbnailUrl}
+                        alt={title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                        <span className="text-brand-gold text-2xl font-bold">
+                          LLS
+                        </span>
+                      </div>
+                    )}
+
+Replace it with:
+                    {displayImage ? (
+                      <img
+                        src={displayImage}
+                        alt={title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                        <span className="text-brand-gold text-2xl font-bold">
+                          LLS
+                        </span>
+                      </div>
+                    )}
+
+
+Step 4 — Update the episode detail page.
+
+File to edit: artifacts/nextjs-app/app/episodes/[id]/page.tsx
+
+Find this exact string:
+  return prisma.episode.findFirst({
+    where: { id, publishStatus: "published" },
+    include: { cta: true },
+  });
+
+Replace it with:
+  return prisma.episode.findFirst({
+    where: { id, publishStatus: "published" },
+    include: { cta: true },
+    // coverArtUrl, youtubeThumbnailUrl are already on the model
+  });
+
+Now update the thumbnail fallback display on the episode detail page.
+
+Find this exact string:
+        ) : episode.thumbnailUrl ? (
+          <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-brand-purple-dark">
+            <img
+              src={episode.thumbnailUrl}
+              alt={title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : null}
+
+Replace it with:
+        ) : (episode.youtubeThumbnailUrl ?? episode.coverArtUrl ?? episode.thumbnailUrl) ? (
+          <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-brand-purple-dark">
+            <img
+              src={(episode.youtubeThumbnailUrl ?? episode.coverArtUrl ?? episode.thumbnailUrl)!}
+              alt={title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : null}
+
+Also add the cover art display in the episode detail page below the guest bio section.
+
+Find this exact string:
+        {/* Guest bio */}
+        {episode.guestBio && (
+          <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2">
+              About {episode.guestName ?? "the guest"}
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {episode.guestBio}
+            </p>
+          </div>
+        )}
+
+Replace it with:
+        {/* Guest bio */}
+        {episode.guestBio && (
+          <div className="bg-gray-50 rounded-xl p-6 mb-8 border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2">
+              About {episode.guestName ?? "the guest"}
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {episode.guestBio}
+            </p>
+          </div>
+        )}
+
+        {/* Episode cover art — shown when different from the video thumbnail */}
+        {episode.coverArtUrl && episode.coverArtUrl !== episode.youtubeThumbnailUrl && (
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">
+              Episode artwork
+            </h2>
+            <img
+              src={episode.coverArtUrl}
+              alt={`${title} cover art`}
+              className="w-48 rounded-xl border border-gray-100 shadow-sm"
+            />
+          </div>
+        )}
+
+
+Step 5 — Update the assessment result page to use the thumbnail priority.
+
+File to edit: artifacts/nextjs-app/app/assessment/result/page.tsx
+
+Find this exact string:
+    select: {
+      id: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      guestName: true,
+      thumbnailUrl: true,
+      episodeNumber: true,
+      durationSeconds: true,
+    },
+
+Replace it with:
+    select: {
+      id: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      guestName: true,
+      thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
+      episodeNumber: true,
+      durationSeconds: true,
+    },
+
+Find this exact string:
+                    {ep.thumbnailUrl ? (
+                      <img
+                        src={ep.thumbnailUrl}
+                        alt={title}
+                        className="w-20 h-14 object-cover rounded-lg flex-shrink-0"
+                      />
+                    ) : (
+
+Replace it with:
+                    {(ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl) ? (
+                      <img
+                        src={(ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl)!}
+                        alt={title}
+                        className="w-20 h-14 object-cover rounded-lg flex-shrink-0"
+                      />
+                    ) : (
+
+
+Verification: Confirm that:
+1. The public episodes API now returns coverArtUrl and youtubeThumbnailUrl
+2. The homepage EpisodeCard uses displayImage = youtubeThumbnailUrl ?? coverArtUrl ?? thumbnailUrl for both large and small cards
+3. The episodes listing page uses the same priority
+4. The episode detail page uses the priority for the fallback image and shows cover art separately below guest bio
+5. The assessment result page uses the priority for episode thumbnails
+6. TypeScript typecheck passes with zero errors
+7. Published episodes on the homepage show the correct image — YouTube thumbnail if set, cover art if not, Captivate artwork as final fallback

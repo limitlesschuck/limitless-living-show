@@ -60,6 +60,8 @@ async function getMatchingEpisodes(crisisCategory: string) {
       titleYoutube: true,
       guestName: true,
       thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
       episodeNumber: true,
       durationSeconds: true,
     },
@@ -181,9 +183,9 @@ export default async function ResultPage({
                     href={`/episodes/${ep.id}`}
                     className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-gold hover:shadow-sm transition-all group"
                   >
-                    {ep.thumbnailUrl ? (
+                    {(ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl) ? (
                       <img
-                        src={ep.thumbnailUrl}
+                        src={(ep.youtubeThumbnailUrl ?? ep.coverArtUrl ?? ep.thumbnailUrl)!}
                         alt={title}
                         className="w-20 h-14 object-cover rounded-lg flex-shrink-0"
                       />

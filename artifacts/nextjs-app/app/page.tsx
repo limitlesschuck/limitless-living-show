@@ -37,6 +37,8 @@ async function getHomeData() {
         guestName: true,
         crisisCategory: true,
         thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
         youtubeId: true,
         episodeNumber: true,
         durationSeconds: true,
@@ -55,6 +57,8 @@ async function getHomeData() {
         guestName: true,
         crisisCategory: true,
         thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
         youtubeId: true,
         episodeNumber: true,
         durationSeconds: true,
@@ -84,6 +88,8 @@ function EpisodeCard({
     guestName: string | null;
     crisisCategory: string | null;
     thumbnailUrl: string | null;
+    coverArtUrl: string | null;
+    youtubeThumbnailUrl: string | null;
     episodeNumber: number | null;
     durationSeconds: number | null;
     captivatePublishedAt: Date | null | string;
@@ -95,15 +101,19 @@ function EpisodeCard({
     ? CATEGORY_LABELS[episode.crisisCategory]
     : null;
   const duration = formatDuration(episode.durationSeconds);
+  const displayImage =
+    episode.youtubeThumbnailUrl ??
+    episode.coverArtUrl ??
+    episode.thumbnailUrl;
 
   if (large) {
     return (
       <Link href={`/episodes/${episode.id}`} className="group block">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-0 bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:border-brand-gold transition-all duration-200">
           <div className="relative aspect-video md:aspect-auto bg-brand-purple-dark overflow-hidden">
-            {episode.thumbnailUrl ? (
+            {displayImage ? (
               <img
-                src={episode.thumbnailUrl}
+                src={displayImage}
                 alt={title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
@@ -147,9 +157,9 @@ function EpisodeCard({
   return (
     <Link href={`/episodes/${episode.id}`} className="episode-card group block">
       <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
-        {episode.thumbnailUrl ? (
+        {displayImage ? (
           <img
-            src={episode.thumbnailUrl}
+            src={displayImage}
             alt={title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />

@@ -105,10 +105,10 @@ export default async function EpisodeDetailPage({
               className="w-full h-full"
             />
           </div>
-        ) : episode.thumbnailUrl ? (
+        ) : (episode.youtubeThumbnailUrl ?? episode.coverArtUrl ?? episode.thumbnailUrl) ? (
           <div className="aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-brand-purple-dark">
             <img
-              src={episode.thumbnailUrl}
+              src={(episode.youtubeThumbnailUrl ?? episode.coverArtUrl ?? episode.thumbnailUrl)!}
               alt={title}
               className="w-full h-full object-cover"
             />
@@ -164,6 +164,20 @@ export default async function EpisodeDetailPage({
             <p className="text-sm text-gray-600 leading-relaxed">
               {episode.guestBio}
             </p>
+          </div>
+        )}
+
+        {/* Episode cover art — shown when different from the video thumbnail */}
+        {episode.coverArtUrl && episode.coverArtUrl !== episode.youtubeThumbnailUrl && (
+          <div className="mb-8">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">
+              Episode artwork
+            </h2>
+            <img
+              src={episode.coverArtUrl}
+              alt={`${title} cover art`}
+              className="w-48 rounded-xl border border-gray-100 shadow-sm"
+            />
           </div>
         )}
 

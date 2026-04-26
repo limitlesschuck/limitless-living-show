@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
         guestName: true,
         crisisCategory: true,
         thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
         youtubeId: true,
         episodeNumber: true,
         durationSeconds: true,
