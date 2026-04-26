@@ -144,6 +144,14 @@ export default function EpisodeDetailPage() {
     setResyncing(false);
   }
 
+  async function saveField(field: string, value: string) {
+    await fetch(`/nextjs-app/api/admin/episodes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+  }
+
   async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -158,7 +166,8 @@ export default function EpisodeDetailPage() {
     const data = await res.json();
     if (res.ok) {
       setForm((f) => ({ ...f, coverArtUrl: data.url }));
-      setMessage({ type: "success", text: "Cover art uploaded successfully" });
+      await saveField("coverArtUrl", data.url);
+      setMessage({ type: "success", text: "Cover art uploaded and saved" });
     } else {
       setMessage({ type: "error", text: data.error ?? "Upload failed" });
     }
@@ -179,7 +188,8 @@ export default function EpisodeDetailPage() {
     const data = await res.json();
     if (res.ok) {
       setForm((f) => ({ ...f, youtubeThumbnailUrl: data.url }));
-      setMessage({ type: "success", text: "YouTube thumbnail uploaded successfully" });
+      await saveField("youtubeThumbnailUrl", data.url);
+      setMessage({ type: "success", text: "YouTube thumbnail uploaded and saved" });
     } else {
       setMessage({ type: "error", text: data.error ?? "Upload failed" });
     }

@@ -1,0 +1,157 @@
+## Prompt 23
+
+Auto-save coverArtUrl and youtubeThumbnailUrl to the database immediately after upload, without requiring a separate Save click.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: "Cover art uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+  async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-thumbnails");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, youtubeThumbnailUrl: data.url }));
+      setMessage({ type: "success", text: "YouTube thumbnail uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingThumb(false);
+  }
+
+Replace it with:
+  async function saveField(field: string, value: string) {
+    await fetch(`/nextjs-app/api/admin/episodes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+  }
+
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      await saveField("coverArtUrl", data.url);
+      setMessage({ type: "success", text: "Cover art uploaded and saved" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+  async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-thumbnails");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, youtubeThumbnailUrl: data.url }));
+      await saveField("youtubeThumbnailUrl", data.url);
+      setMessage({ type: "success", text: "YouTube thumbnail uploaded and saved" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingThumb(false);
+  }
+
+Also apply the same auto-save to the new episode creation page for cover art.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/new/page.tsx
+
+Find this exact string:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: "Cover art uploaded successfully" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+Replace it with:
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: "Cover art uploaded — will be saved with the episode" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+
+Verification: Confirm that:
+1. The episode edit page now has a saveField helper function
+2. handleCoverArtUpload calls saveField("coverArtUrl", data.url) after a successful upload
+3. handleThumbnailUpload calls saveField("youtubeThumbnailUrl", data.url) after a successful upload
+4. TypeScript typecheck passes with zero errors
+5. Upload a cover art image on an existing published episode — without clicking Save — then refresh the homepage and confirm the new image appears
