@@ -44,7 +44,7 @@ export default function EpisodesPage() {
   async function loadEpisodes(status: string) {
     setLoading(true);
     const params = status ? `?filter=${status}` : "";
-    const res = await fetch(`/nextjs-app/api/admin/episodes${params}`);
+    const res = await fetch(`/api/admin/episodes${params}`);
     const data = await res.json();
     setEpisodes(data.episodes ?? []);
     setTotal(data.total ?? 0);
@@ -55,7 +55,7 @@ export default function EpisodesPage() {
     setSyncingNumbers(true);
     setIngestResult(null);
     try {
-      const res = await fetch("/nextjs-app/api/admin/episodes/sync-numbers", {
+      const res = await fetch("/api/admin/episodes/sync-numbers", {
         method: "POST",
       });
       const data = await res.json();
@@ -71,7 +71,7 @@ export default function EpisodesPage() {
     setIngesting(true);
     setIngestResult(null);
     try {
-      const res = await fetch("/nextjs-app/api/admin/episodes/ingest", {
+      const res = await fetch("/api/admin/episodes/ingest", {
         method: "POST",
       });
       const data = await res.json();

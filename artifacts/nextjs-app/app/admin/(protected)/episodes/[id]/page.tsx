@@ -80,7 +80,7 @@ export default function EpisodeDetailPage() {
   });
 
   async function loadEpisode() {
-    const res = await fetch(`/nextjs-app/api/admin/episodes/${id}`);
+    const res = await fetch(`/api/admin/episodes/${id}`);
     const data = await res.json();
     setEpisode(data);
     setForm({
@@ -108,7 +108,7 @@ export default function EpisodeDetailPage() {
   async function handleSave() {
     setSaving(true);
     setMessage(null);
-    const res = await fetch(`/nextjs-app/api/admin/episodes/${id}`, {
+    const res = await fetch(`/api/admin/episodes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -132,7 +132,7 @@ export default function EpisodeDetailPage() {
     setResyncing(true);
     setMessage(null);
     const res = await fetch(
-      `/nextjs-app/api/admin/episodes/${id}/resync`,
+      `/api/admin/episodes/${id}/resync`,
       { method: "POST" }
     );
     const data = await res.json();
@@ -145,7 +145,7 @@ export default function EpisodeDetailPage() {
   }
 
   async function saveField(field: string, value: string) {
-    await fetch(`/nextjs-app/api/admin/episodes/${id}`, {
+    await fetch(`/api/admin/episodes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [field]: value }),
@@ -159,7 +159,7 @@ export default function EpisodeDetailPage() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("folder", "episode-art");
-    const res = await fetch("/nextjs-app/api/admin/upload", {
+    const res = await fetch("/api/admin/upload", {
       method: "POST",
       body: fd,
     });
@@ -181,7 +181,7 @@ export default function EpisodeDetailPage() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("folder", "episode-thumbnails");
-    const res = await fetch("/nextjs-app/api/admin/upload", {
+    const res = await fetch("/api/admin/upload", {
       method: "POST",
       body: fd,
     });
@@ -200,7 +200,7 @@ export default function EpisodeDetailPage() {
     setTesting(true);
     setMessage(null);
     const res = await fetch(
-      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      `/api/admin/episodes/${id}/publish`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,7 +219,7 @@ export default function EpisodeDetailPage() {
     setPublishing(true);
     setMessage(null);
     const res = await fetch(
-      `/nextjs-app/api/admin/episodes/${id}/publish`,
+      `/api/admin/episodes/${id}/publish`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -247,7 +247,7 @@ export default function EpisodeDetailPage() {
   async function handleGenerate() {
     setGenerating(true);
     setMessage(null);
-    const res = await fetch(`/nextjs-app/api/admin/episodes/${id}/generate`, {
+    const res = await fetch(`/api/admin/episodes/${id}/generate`, {
       method: "POST",
     });
     const data = await res.json();

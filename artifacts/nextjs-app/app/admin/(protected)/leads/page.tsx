@@ -51,7 +51,7 @@ export default function LeadsPage() {
     const params = new URLSearchParams();
     if (categoryFilter) params.set("category", categoryFilter);
     if (resultFilter) params.set("resultType", resultFilter);
-    const res = await fetch(`/nextjs-app/api/admin/leads?${params}`);
+    const res = await fetch(`/api/admin/leads?${params}`);
     const data = await res.json();
     setLeads(data.leads ?? []);
     setTotal(data.total ?? 0);
@@ -63,7 +63,7 @@ export default function LeadsPage() {
     if (categoryFilter) params.set("category", categoryFilter);
     if (resultFilter) params.set("resultType", resultFilter);
     params.set("format", "csv");
-    window.open(`/nextjs-app/api/admin/leads?${params}`, "_blank");
+    window.open(`/api/admin/leads?${params}`, "_blank");
   }
 
   useEffect(() => {

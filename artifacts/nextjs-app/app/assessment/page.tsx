@@ -81,7 +81,7 @@ function AssessmentFunnel() {
     e.preventDefault();
     setSubmitting(true);
 
-    const res = await fetch("/nextjs-app/api/assessment", {
+    const res = await fetch("/api/assessment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),

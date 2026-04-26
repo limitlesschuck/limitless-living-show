@@ -1,8 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  basePath: "/nextjs-app",
   env: {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+  },
+  async redirects() {
+    return [
+      {
+        source: "/nextjs-app/:path*",
+        destination: "/:path*",
+        permanent: true,
+      },
+    ];
   },
   images: {
     remotePatterns: [

@@ -31,7 +31,7 @@ export default function NewEpisodePage() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("folder", "episode-art");
-    const res = await fetch("/nextjs-app/api/admin/upload", {
+    const res = await fetch("/api/admin/upload", {
       method: "POST",
       body: fd,
     });
@@ -49,7 +49,7 @@ export default function NewEpisodePage() {
     e.preventDefault();
     setSaving(true);
     setMessage(null);
-    const res = await fetch("/nextjs-app/api/admin/episodes/create", {
+    const res = await fetch("/api/admin/episodes/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),

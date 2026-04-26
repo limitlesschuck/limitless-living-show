@@ -51,14 +51,14 @@ export default function AffiliatesPage() {
 
   async function loadRoutes() {
     setLoading(true);
-    const res = await fetch("/nextjs-app/api/admin/affiliates");
+    const res = await fetch("/api/admin/affiliates");
     const data = await res.json();
     setRoutes(data);
     setLoading(false);
   }
 
   async function handleToggleActive(route: AffiliateRoute) {
-    await fetch(`/nextjs-app/api/admin/affiliates/${route.id}`, {
+    await fetch(`/api/admin/affiliates/${route.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: !route.isActive }),
@@ -69,7 +69,7 @@ export default function AffiliatesPage() {
   async function handleSaveEdit() {
     if (!editing) return;
     setSaving(true);
-    const res = await fetch(`/nextjs-app/api/admin/affiliates/${editing.id}`, {
+    const res = await fetch(`/api/admin/affiliates/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -93,7 +93,7 @@ export default function AffiliatesPage() {
 
   async function handleAdd() {
     setSaving(true);
-    const res = await fetch("/nextjs-app/api/admin/affiliates", {
+    const res = await fetch("/api/admin/affiliates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -111,7 +111,7 @@ export default function AffiliatesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this affiliate route?")) return;
-    await fetch(`/nextjs-app/api/admin/affiliates/${id}`, { method: "DELETE" });
+    await fetch(`/api/admin/affiliates/${id}`, { method: "DELETE" });
     loadRoutes();
   }
 

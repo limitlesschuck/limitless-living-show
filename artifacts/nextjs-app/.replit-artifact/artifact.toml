@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/nextjs-app/"
+previewPath = "/"
 title = "Next.js App"
 version = "1.0.0"
 id = "artifacts/nextjs-app"
@@ -11,12 +11,16 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/nextjs-app/" ]
+paths = ["/"]
 localPort = 19344
 
 [services.development]
 run = "pnpm --filter @workspace/nextjs-app run dev"
 
+[services.production]
+build = "pnpm --filter @workspace/nextjs-app run build"
+run = "pnpm --filter @workspace/nextjs-app run start"
+
 [services.env]
 PORT = "5000"
-NEXTAUTH_URL = "http://localhost:19344/nextjs-app/api/auth"
+NEXTAUTH_URL = "http://localhost:19344/api/auth"
