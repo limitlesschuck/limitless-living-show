@@ -56,6 +56,7 @@ async function getMatchingEpisodes(crisisCategory: string) {
     take: 3,
     select: {
       id: true,
+      slug: true,
       titleOriginal: true,
       titleYoutube: true,
       guestName: true,
@@ -180,7 +181,7 @@ export default async function ResultPage({
                 return (
                   <Link
                     key={ep.id}
-                    href={`/episodes/${ep.id}`}
+                    href={ep.slug ? `/episodes/${ep.slug}` : `/episodes/${ep.id}`}
                     className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-brand-gold hover:shadow-sm transition-all group"
                   >
                     {(ep.youtubeThumbnailUrl || ep.coverArtUrl || ep.thumbnailUrl) ? (

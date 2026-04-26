@@ -22,6 +22,7 @@ async function getEpisodes(category?: string) {
     orderBy: { captivatePublishedAt: "desc" },
     select: {
       id: true,
+      slug: true,
       episodeNumber: true,
       titleOriginal: true,
       titleYoutube: true,
@@ -121,7 +122,7 @@ export default async function EpisodesPage({
               return (
                 <Link
                   key={ep.id}
-                  href={`/episodes/${ep.id}`}
+                  href={ep.slug ? `/episodes/${ep.slug}` : `/episodes/${ep.id}`}
                   className="group episode-card block"
                 >
                   <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">

@@ -67,6 +67,7 @@ model User {
 
 model Episode {
   id                    String    @id @default(cuid())
+  slug                  String?   @unique
   captivateId           String?   @unique
   youtubeId             String?
   titleOriginal         String

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { generateSlug } from "@/lib/slug";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -31,8 +32,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const slug = generateSlug({
+    episodeNumber: episodeNumber ? parseInt(episodeNumber) : null,
+    titleYoutube: null,
+    titleOriginal: riversideTitle ?? `Episode with ${guestName ?? "guest"}`,
+    guestName: guestName || null,
+  });
+
   const episode = await prisma.episode.create({
     data: {
+      slug,
       captivateId: captivateId || null,
       episodeNumber: episodeNumber ? parseInt(episodeNumber) : null,
       titleOriginal: riversideTitle ?? `Episode with ${guestName}`,

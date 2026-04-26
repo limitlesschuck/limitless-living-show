@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 
@@ -21,9 +22,12 @@ const CTA_HEADLINES: Record<string, string> = {
   career: "Looking for purpose or a career change?",
 };
 
-async function getEpisode(id: string) {
+async function getEpisode(idOrSlug: string) {
   return prisma.episode.findFirst({
-    where: { id, publishStatus: "published" },
+    where: {
+      publishStatus: "published",
+      OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+    },
     include: { cta: true },
   });
 }
@@ -35,6 +39,10 @@ export default async function EpisodeDetailPage({
 }) {
   const episode = await getEpisode(params.id);
   if (!episode) notFound();
+
+  if (episode.slug && params.id !== episode.slug) {
+    redirect(`/episodes/${episode.slug}`);
+  }
 
   const title = episode.titleYoutube ?? episode.titleOriginal;
   const category = episode.crisisCategory

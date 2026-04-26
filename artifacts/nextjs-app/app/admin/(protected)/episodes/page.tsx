@@ -40,6 +40,7 @@ export default function EpisodesPage() {
   const [ingestResult, setIngestResult] = useState<string | null>(null);
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [syncingNumbers, setSyncingNumbers] = useState(false);
+  const [generatingSlugs, setGeneratingSlugs] = useState(false);
 
   async function loadEpisodes(status: string) {
     setLoading(true);
@@ -49,6 +50,21 @@ export default function EpisodesPage() {
     setEpisodes(data.episodes ?? []);
     setTotal(data.total ?? 0);
     setLoading(false);
+  }
+
+  async function handleGenerateSlugs() {
+    setGeneratingSlugs(true);
+    setIngestResult(null);
+    try {
+      const res = await fetch("/api/admin/episodes/generate-slugs", {
+        method: "POST",
+      });
+      const data = await res.json();
+      setIngestResult(data.message ?? "Slugs generated");
+    } catch {
+      setIngestResult("Error: slug generation failed");
+    }
+    setGeneratingSlugs(false);
   }
 
   async function handleSyncNumbers() {
@@ -101,6 +117,13 @@ export default function EpisodesPage() {
           <p className="text-sm text-gray-500 mt-1">{total} total</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleGenerateSlugs}
+            disabled={generatingSlugs}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {generatingSlugs ? "Generating..." : "Generate slugs"}
+          </button>
           <button
             onClick={handleSyncNumbers}
             disabled={syncingNumbers}

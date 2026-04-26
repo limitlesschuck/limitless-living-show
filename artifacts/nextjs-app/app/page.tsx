@@ -36,6 +36,7 @@ async function getHomeData() {
         descriptionWebsite: true,
         guestName: true,
         crisisCategory: true,
+        slug: true,
         thumbnailUrl: true,
         coverArtUrl: true,
         youtubeThumbnailUrl: true,
@@ -56,6 +57,7 @@ async function getHomeData() {
         descriptionWebsite: true,
         guestName: true,
         crisisCategory: true,
+        slug: true,
         thumbnailUrl: true,
         coverArtUrl: true,
         youtubeThumbnailUrl: true,
@@ -82,6 +84,7 @@ function EpisodeCard({
 }: {
   episode: {
     id: string;
+    slug: string | null;
     titleOriginal: string;
     titleYoutube: string | null;
     descriptionWebsite: string | null;
@@ -97,6 +100,9 @@ function EpisodeCard({
   large?: boolean;
 }) {
   const title = episode.titleYoutube ?? episode.titleOriginal;
+  const episodeHref = episode.slug
+    ? `/episodes/${episode.slug}`
+    : `/episodes/${episode.id}`;
   const category = episode.crisisCategory
     ? CATEGORY_LABELS[episode.crisisCategory]
     : null;
@@ -107,7 +113,7 @@ function EpisodeCard({
 
   if (large) {
     return (
-      <Link href={`/episodes/${episode.id}`} className="group block">
+      <Link href={episodeHref} className="group block">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-0 bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:border-brand-gold transition-all duration-200">
           <div className="relative aspect-video md:aspect-auto bg-brand-purple-dark overflow-hidden">
             {displayImage ? (
@@ -154,7 +160,7 @@ function EpisodeCard({
   }
 
   return (
-    <Link href={`/episodes/${episode.id}`} className="episode-card group block">
+    <Link href={episodeHref} className="episode-card group block">
       <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
         {displayImage ? (
           <img

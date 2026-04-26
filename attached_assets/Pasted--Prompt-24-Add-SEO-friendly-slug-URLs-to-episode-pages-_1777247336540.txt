@@ -1,0 +1,575 @@
+## Prompt 24
+
+Add SEO-friendly slug URLs to episode pages. Format: /episodes/ep-{number}-{youtube-title-slug}-{guest-name-slug}
+
+Step 1 — Add slug field to the Episode schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+  id                    String    @id @default(cuid())
+  captivateId           String?   @unique
+  youtubeId             String?
+
+Replace it with:
+  id                    String    @id @default(cuid())
+  slug                  String?   @unique
+  captivateId           String?   @unique
+  youtubeId             String?
+
+After saving run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 2 — Create the slug generation utility.
+
+Create a new file at artifacts/nextjs-app/lib/slug.ts with the following contents:
+
+export function generateSlug(params: {
+  episodeNumber: number | null;
+  titleYoutube: string | null;
+  titleOriginal: string;
+  guestName: string | null;
+}): string {
+  const num = params.episodeNumber
+    ? `ep-${params.episodeNumber}`
+    : null;
+
+  const title = (params.titleYoutube ?? params.titleOriginal)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60)
+    .replace(/-$/, "");
+
+  const guest = params.guestName
+    ? params.guestName
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, "-")
+        .slice(0, 30)
+    : null;
+
+  const parts = [num, title, guest].filter(Boolean);
+  return parts.join("-");
+}
+
+export function isSlug(value: string): boolean {
+  return /^ep-\d+/.test(value) || value.includes("-");
+}
+
+
+Step 3 — Create a slug generation and backfill API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/generate-slugs/route.ts with the following contents:
+
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { generateSlug } from "@/lib/slug";
+
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin"].includes(session.user.role ?? "")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episodes = await prisma.episode.findMany({
+    where: { slug: null },
+    select: {
+      id: true,
+      episodeNumber: true,
+      titleYoutube: true,
+      titleOriginal: true,
+      guestName: true,
+    },
+  });
+
+  let updated = 0;
+  const errors: string[] = [];
+
+  for (const ep of episodes) {
+    let slug = generateSlug({
+      episodeNumber: ep.episodeNumber,
+      titleYoutube: ep.titleYoutube,
+      titleOriginal: ep.titleOriginal,
+      guestName: ep.guestName,
+    });
+
+    const existing = await prisma.episode.findUnique({ where: { slug } });
+    if (existing && existing.id !== ep.id) {
+      slug = `${slug}-${ep.id.slice(-4)}`;
+    }
+
+    try {
+      await prisma.episode.update({
+        where: { id: ep.id },
+        data: { slug },
+      });
+      updated++;
+    } catch {
+      errors.push(ep.id);
+    }
+  }
+
+  return NextResponse.json({
+    updated,
+    errors,
+    message: `Generated slugs for ${updated} episodes`,
+  });
+}
+
+
+Step 4 — Update the public episode API to look up by slug OR id.
+
+File to edit: artifacts/nextjs-app/app/api/episodes/[id]/route.ts
+
+Replace the entire contents with:
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+
+  const episode = await prisma.episode.findFirst({
+    where: {
+      publishStatus: "published",
+      OR: [{ id }, { slug: id }],
+    },
+    include: { cta: true },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(episode);
+}
+
+
+Step 5 — Update the episode detail page to look up by slug OR id and redirect to slug URL if accessed by id.
+
+File to edit: artifacts/nextjs-app/app/episodes/[id]/page.tsx
+
+Find this exact string:
+async function getEpisode(id: string) {
+  return prisma.episode.findFirst({
+    where: { id, publishStatus: "published" },
+    include: { cta: true },
+  });
+}
+
+Replace it with:
+async function getEpisode(idOrSlug: string) {
+  return prisma.episode.findFirst({
+    where: {
+      publishStatus: "published",
+      OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+    },
+    include: { cta: true },
+  });
+}
+
+Find this exact string:
+export default async function EpisodeDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const episode = await getEpisode(params.id);
+  if (!episode) notFound();
+
+Replace it with:
+import { redirect } from "next/navigation";
+
+export default async function EpisodeDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const episode = await getEpisode(params.id);
+  if (!episode) notFound();
+
+  if (episode.slug && params.id !== episode.slug) {
+    redirect(`/episodes/${episode.slug}`);
+  }
+
+
+Step 6 — Update all episode links to use slug when available.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Find this exact string:
+function EpisodeCard({
+  episode,
+  large = false,
+}: {
+  episode: {
+    id: string;
+    titleOriginal: string;
+    titleYoutube: string | null;
+    descriptionWebsite: string | null;
+    guestName: string | null;
+    crisisCategory: string | null;
+    thumbnailUrl: string | null;
+    coverArtUrl: string | null;
+    youtubeThumbnailUrl: string | null;
+    episodeNumber: number | null;
+    durationSeconds: number | null;
+    captivatePublishedAt: Date | null | string;
+  };
+  large?: boolean;
+
+Replace it with:
+function EpisodeCard({
+  episode,
+  large = false,
+}: {
+  episode: {
+    id: string;
+    slug: string | null;
+    titleOriginal: string;
+    titleYoutube: string | null;
+    descriptionWebsite: string | null;
+    guestName: string | null;
+    crisisCategory: string | null;
+    thumbnailUrl: string | null;
+    coverArtUrl: string | null;
+    youtubeThumbnailUrl: string | null;
+    episodeNumber: number | null;
+    durationSeconds: number | null;
+    captivatePublishedAt: Date | null | string;
+  };
+  large?: boolean;
+
+Find this exact string:
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+  const displayImage = large
+
+Replace it with:
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const episodeHref = episode.slug
+    ? `/episodes/${episode.slug}`
+    : `/episodes/${episode.id}`;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+  const displayImage = large
+
+Now find this exact string (large card Link):
+  return (
+    <Link href={`/episodes/${episode.id}`} className="group block">
+
+Replace it with:
+  return (
+    <Link href={episodeHref} className="group block">
+
+Find this exact string (small card Link):
+    <Link href={`/episodes/${episode.id}`} className="group episode-card block">
+
+Replace it with:
+    <Link href={episodeHref} className="group episode-card block">
+
+Now add slug to the getHomeData selects. Find this exact string (first select):
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+    prisma.episode.findMany({
+      where: { publishStatus: "published", youtubeId: { not: null } },
+
+Replace it with:
+        slug: true,
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+    prisma.episode.findMany({
+      where: { publishStatus: "published", youtubeId: { not: null } },
+
+Find this exact string (second select):
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+  ]);
+
+Replace it with:
+        slug: true,
+        thumbnailUrl: true,
+        coverArtUrl: true,
+        youtubeThumbnailUrl: true,
+        youtubeId: true,
+        episodeNumber: true,
+        durationSeconds: true,
+        captivatePublishedAt: true,
+      },
+    }),
+  ]);
+
+
+Step 7 — Update the episodes listing page to use slugs.
+
+File to edit: artifacts/nextjs-app/app/episodes/page.tsx
+
+Find this exact string:
+    select: {
+      id: true,
+      episodeNumber: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      descriptionWebsite: true,
+      guestName: true,
+      crisisCategory: true,
+      thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
+      youtubeId: true,
+      durationSeconds: true,
+      captivatePublishedAt: true,
+    },
+
+Replace it with:
+    select: {
+      id: true,
+      slug: true,
+      episodeNumber: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      descriptionWebsite: true,
+      guestName: true,
+      crisisCategory: true,
+      thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
+      youtubeId: true,
+      durationSeconds: true,
+      captivatePublishedAt: true,
+    },
+
+Find this exact string:
+                <Link
+                  key={ep.id}
+                  href={`/episodes/${ep.id}`}
+                  className="group episode-card block"
+                >
+
+Replace it with:
+                <Link
+                  key={ep.id}
+                  href={ep.slug ? `/episodes/${ep.slug}` : `/episodes/${ep.id}`}
+                  className="group episode-card block"
+                >
+
+
+Step 8 — Update the assessment result page to use slugs.
+
+File to edit: artifacts/nextjs-app/app/assessment/result/page.tsx
+
+Find this exact string:
+    select: {
+      id: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      guestName: true,
+      thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
+      episodeNumber: true,
+      durationSeconds: true,
+    },
+
+Replace it with:
+    select: {
+      id: true,
+      slug: true,
+      titleOriginal: true,
+      titleYoutube: true,
+      guestName: true,
+      thumbnailUrl: true,
+      coverArtUrl: true,
+      youtubeThumbnailUrl: true,
+      episodeNumber: true,
+      durationSeconds: true,
+    },
+
+Find this exact string:
+                  <Link
+                    key={ep.id}
+                    href={`/episodes/${ep.id}`}
+
+Replace it with:
+                  <Link
+                    key={ep.id}
+                    href={ep.slug ? `/episodes/${ep.slug}` : `/episodes/${ep.id}`}
+
+
+Step 9 — Add Generate slugs button to admin episodes page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/page.tsx
+
+Find this exact string:
+  const [syncingNumbers, setSyncingNumbers] = useState(false);
+
+Replace it with:
+  const [syncingNumbers, setSyncingNumbers] = useState(false);
+  const [generatingSlugs, setGeneratingSlugs] = useState(false);
+
+Find this exact string:
+  async function handleSyncNumbers() {
+    setSyncingNumbers(true);
+
+Add this function immediately before it:
+  async function handleGenerateSlugs() {
+    setGeneratingSlugs(true);
+    setIngestResult(null);
+    try {
+      const res = await fetch("/api/admin/episodes/generate-slugs", {
+        method: "POST",
+      });
+      const data = await res.json();
+      setIngestResult(data.message ?? "Slugs generated");
+    } catch {
+      setIngestResult("Error: slug generation failed");
+    }
+    setGeneratingSlugs(false);
+  }
+
+Find this exact string:
+          <button
+            onClick={handleSyncNumbers}
+            disabled={syncingNumbers}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {syncingNumbers ? "Syncing..." : "Sync episode numbers"}
+          </button>
+
+Replace it with:
+          <button
+            onClick={handleGenerateSlugs}
+            disabled={generatingSlugs}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {generatingSlugs ? "Generating..." : "Generate slugs"}
+          </button>
+          <button
+            onClick={handleSyncNumbers}
+            disabled={syncingNumbers}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {syncingNumbers ? "Syncing..." : "Sync episode numbers"}
+          </button>
+
+
+Step 10 — Auto-generate slug when a new episode is created or when AI content is approved.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/create/route.ts
+
+Add this import at the top of the file after the existing imports:
+import { generateSlug } from "@/lib/slug";
+
+Find this exact string:
+  const episode = await prisma.episode.create({
+    data: {
+      captivateId: captivateId || null,
+      episodeNumber: episodeNumber ? parseInt(episodeNumber) : null,
+      titleOriginal: riversideTitle ?? `Episode with ${guestName}`,
+
+Replace it with:
+  const slug = generateSlug({
+    episodeNumber: episodeNumber ? parseInt(episodeNumber) : null,
+    titleYoutube: null,
+    titleOriginal: riversideTitle ?? `Episode with ${guestName ?? "guest"}`,
+    guestName: guestName || null,
+  });
+
+  const episode = await prisma.episode.create({
+    data: {
+      slug,
+      captivateId: captivateId || null,
+      episodeNumber: episodeNumber ? parseInt(episodeNumber) : null,
+      titleOriginal: riversideTitle ?? `Episode with ${guestName}`,
+
+Also update the generate route to refresh the slug after AI content is created.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/generate/route.ts
+
+Add this import after the existing imports:
+import { generateSlug } from "@/lib/slug";
+
+Find this exact string:
+  await prisma.episode.update({
+    where: { id: episode.id },
+    data: {
+      titleYoutube: generated.youtubeTitles[0],
+      titlePodcast: generated.podcastTitle,
+      descriptionYoutube: generated.youtubeDescription,
+      descriptionWebsite: generated.websiteDescription,
+      tags: generated.tags,
+      crisisCategory: episode.crisisCategory ?? generated.suggestedCategory,
+      publishStatus: "ai_generated",
+    },
+  });
+
+Replace it with:
+  const newSlug = generateSlug({
+    episodeNumber: episode.episodeNumber,
+    titleYoutube: generated.youtubeTitles[0],
+    titleOriginal: episode.titleOriginal,
+    guestName: episode.guestName,
+  });
+
+  await prisma.episode.update({
+    where: { id: episode.id },
+    data: {
+      slug: newSlug,
+      titleYoutube: generated.youtubeTitles[0],
+      titlePodcast: generated.podcastTitle,
+      descriptionYoutube: generated.youtubeDescription,
+      descriptionWebsite: generated.websiteDescription,
+      tags: generated.tags,
+      crisisCategory: episode.crisisCategory ?? generated.suggestedCategory,
+      publishStatus: "ai_generated",
+    },
+  });
+
+
+Verification: Confirm that:
+1. prisma/schema.prisma has the slug field with @unique and db:push completed
+2. lib/slug.ts was created with generateSlug and isSlug functions
+3. app/api/admin/episodes/generate-slugs/route.ts was created
+4. The public episode API now looks up by slug OR id
+5. The episode detail page redirects from id-based URL to slug URL
+6. The homepage, episodes listing, and assessment result pages all use slug in links
+7. The admin episodes page has a Generate slugs button
+8. New episodes auto-generate a slug on creation
+9. AI generation updates the slug to use the YouTube title
+10. TypeScript typecheck passes with zero errors
+11. Click Generate slugs in the admin — confirm all existing episodes get slugs
+12. Visit an episode page and confirm the URL is /episodes/ep-5-your-anger-is-destroying-your-health-dr-mort-orman format

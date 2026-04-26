@@ -5,14 +5,14 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { id } = params;
+
   const episode = await prisma.episode.findFirst({
     where: {
-      id: params.id,
       publishStatus: "published",
+      OR: [{ id }, { slug: id }],
     },
-    include: {
-      cta: true,
-    },
+    include: { cta: true },
   });
 
   if (!episode) {
