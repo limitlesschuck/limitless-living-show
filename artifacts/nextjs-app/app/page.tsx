@@ -101,8 +101,9 @@ function EpisodeCard({
     ? CATEGORY_LABELS[episode.crisisCategory]
     : null;
   const duration = formatDuration(episode.durationSeconds);
-  const displayImage =
-    episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl;
+  const displayImage = large
+    ? episode.coverArtUrl || episode.thumbnailUrl
+    : episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl;
 
   if (large) {
     return (
