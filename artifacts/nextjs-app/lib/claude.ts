@@ -13,6 +13,9 @@ export interface GeneratedEpisodeContent {
 export async function generateEpisodeContent(params: {
   titleOriginal: string;
   descriptionOriginal: string;
+  transcript: string | null;
+  riversideTitle: string | null;
+  riversideKeywords: string | null;
   guestName: string | null;
   crisisCategory: string | null;
 }): Promise<GeneratedEpisodeContent> {
@@ -23,12 +26,17 @@ export async function generateEpisodeContent(params: {
     ? `The episode has been categorised as: ${params.crisisCategory}.`
     : "Please suggest the most appropriate crisis category from: grief, relationship, health, financial, spiritual, career.";
 
+  const contentSource = params.transcript
+    ? `TRANSCRIPT (use this as the primary source):\n${params.transcript.slice(0, 8000)}`
+    : `SHOW NOTES:\n${params.descriptionOriginal}`;
+
   const prompt = `You are an expert podcast content strategist specialising in personal transformation content. Your job is to rewrite podcast episode metadata to maximise YouTube discovery and emotional resonance for people going through a personal crisis or life transition.
 
 Here is the episode information:
-Title: ${params.titleOriginal}
+Working title: ${params.riversideTitle ?? params.titleOriginal}
 Guest: ${params.guestName ?? "Not specified"}
-Description: ${params.descriptionOriginal}
+Keywords: ${params.riversideKeywords ?? "Not specified"}
+${contentSource}
 ${categoryHint}
 
 Generate the following and return ONLY valid JSON with no markdown, no code fences, no preamble:

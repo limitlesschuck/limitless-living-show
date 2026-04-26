@@ -24,6 +24,8 @@ function buildPayload(episode: {
   descriptionOriginal: string | null;
   captivateId: string | null;
   thumbnailUrl: string | null;
+  coverArtUrl: string | null;
+  youtubeThumbnailUrl: string | null;
   audioUrl: string | null;
   mp4Url: string | null;
   tags: string[];
@@ -54,7 +56,8 @@ function buildPayload(episode: {
     epUrl: episode.captivateId
       ? `https://limitlesslivingpodcast.com/episode/${episode.captivateId}`
       : null,
-    thumb: episode.thumbnailUrl,
+    thumb: episode.youtubeThumbnailUrl ?? episode.thumbnailUrl,
+    coverArtUrl: episode.coverArtUrl ?? episode.thumbnailUrl,
     showNotes: episode.descriptionWebsite,
     keywords: episode.tags.join(", "),
     mp4Url: episode.mp4Url,

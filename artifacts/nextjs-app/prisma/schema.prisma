@@ -85,10 +85,14 @@ model Episode {
   crisisCategory        String?
   tags                  String[]
   thumbnailUrl          String?
+  coverArtUrl           String?
+  youtubeThumbnailUrl   String?
   audioUrl              String?
   videoUrl              String?
   mp4Url                String?
   episodeNumber         Int?
+  riversideTitle        String?
+  riversideKeywords     String?   @db.Text
   durationSeconds       Int?
   publishStatus         String    @default("draft")
   publishedAt           DateTime?

@@ -56,6 +56,8 @@ export async function PATCH(
     "publishStatus",
     "youtubeId",
     "mp4Url",
+    "coverArtUrl",
+    "youtubeThumbnailUrl",
     "ctaId",
   ];
 

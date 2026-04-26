@@ -21,13 +21,16 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const prompt = `Title: ${episode.titleOriginal}\nGuest: ${episode.guestName ?? "Not specified"}\nDescription: ${episode.descriptionOriginal ?? ""}`;
+  const prompt = `Title: ${episode.riversideTitle ?? episode.titleOriginal}\nGuest: ${episode.guestName ?? "Not specified"}\nTranscript length: ${episode.transcript?.length ?? 0} chars`;
 
   let generated;
   try {
     generated = await generateEpisodeContent({
       titleOriginal: episode.titleOriginal,
       descriptionOriginal: episode.descriptionOriginal ?? "",
+      transcript: episode.transcript,
+      riversideTitle: episode.riversideTitle,
+      riversideKeywords: episode.riversideKeywords,
       guestName: episode.guestName,
       crisisCategory: episode.crisisCategory,
     });

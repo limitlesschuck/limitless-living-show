@@ -1,0 +1,1002 @@
+## Prompt 20
+
+Build the manual episode creation wizard, update Claude to use the transcript as primary input, add cover art upload, and add a re-sync button for individual episodes.
+
+Step 1 — Add coverArtUrl and riversideTitle fields to the Episode schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+  thumbnailUrl          String?
+  audioUrl              String?
+  videoUrl              String?
+  mp4Url                String?
+  episodeNumber         Int?
+
+Replace it with:
+  thumbnailUrl          String?
+  coverArtUrl           String?
+  youtubeThumbnailUrl   String?
+  audioUrl              String?
+  videoUrl              String?
+  mp4Url                String?
+  episodeNumber         Int?
+  riversideTitle        String?
+  riversideKeywords     String?   @db.Text
+
+After saving run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 2 — Create the cover art upload API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/upload/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { writeFile, mkdir } from "fs/promises";
+import { join } from "path";
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const formData = await req.formData();
+  const file = formData.get("file") as File | null;
+  const folder = (formData.get("folder") as string) ?? "episode-art";
+
+  if (!file) {
+    return NextResponse.json({ error: "No file provided" }, { status: 400 });
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    return NextResponse.json(
+      { error: "Only JPEG, PNG, and WebP images are allowed" },
+      { status: 400 }
+    );
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const safeName = file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+  const filename = `${safeName}-${Date.now()}.${ext}`;
+
+  const uploadDir = join(process.cwd(), "public", folder);
+  await mkdir(uploadDir, { recursive: true });
+  const filePath = join(uploadDir, filename);
+
+  const bytes = await file.arrayBuffer();
+  await writeFile(filePath, Buffer.from(bytes));
+
+  const basePath = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "";
+  const publicUrl = `${basePath}/${folder}/${filename}`;
+
+  return NextResponse.json({ url: publicUrl, filename });
+}
+
+
+Step 3 — Update the Claude content generation to use transcript as primary input.
+
+File to edit: artifacts/nextjs-app/lib/claude.ts
+
+Find this exact string:
+export async function generateEpisodeContent(params: {
+  titleOriginal: string;
+  descriptionOriginal: string;
+  guestName: string | null;
+  crisisCategory: string | null;
+}): Promise<GeneratedEpisodeContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const categoryHint = params.crisisCategory
+    ? `The episode has been categorised as: ${params.crisisCategory}.`
+    : "Please suggest the most appropriate crisis category from: grief, relationship, health, financial, spiritual, career.";
+
+  const prompt = `You are an expert podcast content strategist specialising in personal transformation content. Your job is to rewrite podcast episode metadata to maximise YouTube discovery and emotional resonance for people going through a personal crisis or life transition.\n\nHere is the episode information:\nTitle: ${params.titleOriginal}\nGuest: ${params.guestName ?? "Not specified"}\nDescription: ${params.descriptionOriginal}\n${categoryHint}
+
+Replace it with:
+export async function generateEpisodeContent(params: {
+  titleOriginal: string;
+  descriptionOriginal: string;
+  transcript: string | null;
+  riversideTitle: string | null;
+  riversideKeywords: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+}): Promise<GeneratedEpisodeContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const categoryHint = params.crisisCategory
+    ? `The episode has been categorised as: ${params.crisisCategory}.`
+    : "Please suggest the most appropriate crisis category from: grief, relationship, health, financial, spiritual, career.";
+
+  const contentSource = params.transcript
+    ? `TRANSCRIPT (use this as the primary source):\n${params.transcript.slice(0, 8000)}`
+    : `SHOW NOTES:\n${params.descriptionOriginal}`;
+
+  const prompt = `You are an expert podcast content strategist specialising in personal transformation content. Your job is to rewrite podcast episode metadata to maximise YouTube discovery and emotional resonance for people going through a personal crisis or life transition.\n\nHere is the episode information:\nWorking title: ${params.riversideTitle ?? params.titleOriginal}\nGuest: ${params.guestName ?? "Not specified"}\nKeywords: ${params.riversideKeywords ?? "Not specified"}\n${contentSource}\n${categoryHint}
+
+
+Step 4 — Update the generate route to pass transcript and new fields to Claude.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/generate/route.ts
+
+Replace the entire contents with:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { generateEpisodeContent } from "@/lib/claude";
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const prompt = `Title: ${episode.riversideTitle ?? episode.titleOriginal}\nGuest: ${episode.guestName ?? "Not specified"}\nTranscript length: ${episode.transcript?.length ?? 0} chars`;
+
+  let generated;
+  try {
+    generated = await generateEpisodeContent({
+      titleOriginal: episode.titleOriginal,
+      descriptionOriginal: episode.descriptionOriginal ?? "",
+      transcript: episode.transcript,
+      riversideTitle: episode.riversideTitle,
+      riversideKeywords: episode.riversideKeywords,
+      guestName: episode.guestName,
+      crisisCategory: episode.crisisCategory,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  await prisma.aiContentLog.create({
+    data: {
+      episodeId: episode.id,
+      provider: "claude",
+      contentType: "full_episode",
+      prompt,
+      output: JSON.stringify(generated),
+      tokensUsed: null,
+      approved: false,
+    },
+  });
+
+  await prisma.episode.update({
+    where: { id: episode.id },
+    data: {
+      titleYoutube: generated.youtubeTitles[0],
+      titlePodcast: generated.podcastTitle,
+      descriptionYoutube: generated.youtubeDescription,
+      descriptionWebsite: generated.websiteDescription,
+      tags: generated.tags,
+      crisisCategory: episode.crisisCategory ?? generated.suggestedCategory,
+      publishStatus: "ai_generated",
+    },
+  });
+
+  return NextResponse.json({ generated });
+}
+
+
+Step 5 — Create the episode creation API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/create/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const {
+    captivateId,
+    episodeNumber,
+    guestName,
+    guestEmail,
+    riversideTitle,
+    riversideKeywords,
+    transcript,
+    descriptionOriginal,
+    publishDate,
+    coverArtUrl,
+    mp4Url,
+  } = body;
+
+  if (!riversideTitle && !guestName) {
+    return NextResponse.json(
+      { error: "At least a working title or guest name is required" },
+      { status: 400 }
+    );
+  }
+
+  const episode = await prisma.episode.create({
+    data: {
+      captivateId: captivateId || null,
+      episodeNumber: episodeNumber ? parseInt(episodeNumber) : null,
+      titleOriginal: riversideTitle ?? `Episode with ${guestName}`,
+      riversideTitle: riversideTitle || null,
+      riversideKeywords: riversideKeywords || null,
+      transcript: transcript || null,
+      descriptionOriginal: descriptionOriginal || null,
+      guestName: guestName || null,
+      guestEmail: guestEmail || null,
+      coverArtUrl: coverArtUrl || null,
+      thumbnailUrl: coverArtUrl || null,
+      mp4Url: mp4Url || null,
+      captivatePublishedAt: publishDate ? new Date(publishDate) : null,
+      publishStatus: "draft",
+    },
+  });
+
+  return NextResponse.json({ id: episode.id, success: true });
+}
+
+
+Step 6 — Create the episode re-sync API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/resync/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { fetchCaptivateEpisodes } from "@/lib/captivate";
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!episode.captivateId) {
+    return NextResponse.json(
+      { error: "This episode has no Captivate ID — cannot sync" },
+      { status: 400 }
+    );
+  }
+
+  const episodes = await fetchCaptivateEpisodes();
+  const match = episodes.find((ep) => ep.id === episode.captivateId);
+
+  if (!match) {
+    return NextResponse.json(
+      { error: "Episode not found in Captivate RSS feed" },
+      { status: 404 }
+    );
+  }
+
+  await prisma.episode.update({
+    where: { id: episode.id },
+    data: {
+      titleOriginal: match.title,
+      descriptionOriginal: match.description,
+      audioUrl: match.audioUrl,
+      thumbnailUrl: episode.coverArtUrl ?? match.thumbnailUrl,
+      durationSeconds: match.durationSeconds,
+      episodeNumber: match.episodeNumber ?? episode.episodeNumber,
+      captivatePublishedAt: match.publishedAt
+        ? new Date(match.publishedAt)
+        : episode.captivatePublishedAt,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "Episode synced from Captivate — AI content was not changed",
+  });
+}
+
+
+Step 7 — Create the new episode creation page.
+
+Create a new file at artifacts/nextjs-app/app/admin/(protected)/episodes/new/page.tsx with the following contents:
+
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+export default function NewEpisodePage() {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [form, setForm] = useState({
+    captivateId: "",
+    episodeNumber: "",
+    guestName: "",
+    guestEmail: "",
+    riversideTitle: "",
+    riversideKeywords: "",
+    transcript: "",
+    descriptionOriginal: "",
+    publishDate: "",
+    coverArtUrl: "",
+    mp4Url: "",
+  });
+
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    const res = await fetch("/nextjs-app/api/admin/episodes/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json();
+    if (res.ok && data.id) {
+      router.push(`/admin/episodes/${data.id}`);
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Failed to create episode" });
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="max-w-4xl">
+      <div className="flex items-center gap-3 mb-6">
+        <Link href="/admin/episodes" className="text-sm text-gray-500 hover:text-gray-900">
+          ← Episodes
+        </Link>
+        <span className="text-gray-300">/</span>
+        <span className="text-sm text-gray-900 font-medium">New episode</span>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <h1 className="text-lg font-semibold text-gray-900 mb-1">Create new episode</h1>
+        <p className="text-sm text-gray-500">
+          Fill in the details from Riverside and Captivate. Claude will generate all content after you save.
+        </p>
+      </div>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {message.text}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Left — main content */}
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* Riverside content */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-900 mb-4">
+                Riverside content
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Working title <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.riversideTitle}
+                    onChange={(e) => setForm((f) => ({ ...f, riversideTitle: e.target.value }))}
+                    className="input"
+                    placeholder="Title as generated by Riverside"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Keywords (from Riverside)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.riversideKeywords}
+                    onChange={(e) => setForm((f) => ({ ...f, riversideKeywords: e.target.value }))}
+                    className="input"
+                    placeholder="Paste keywords from Riverside"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Transcript <span className="text-brand-gold font-medium">← Claude's primary input</span>
+                  </label>
+                  <textarea
+                    value={form.transcript}
+                    onChange={(e) => setForm((f) => ({ ...f, transcript: e.target.value }))}
+                    rows={12}
+                    className="input font-mono text-xs"
+                    placeholder="Paste the full transcript from Riverside here — this is what Claude uses to generate all content"
+                  />
+                  {form.transcript && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      {form.transcript.length.toLocaleString()} characters
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Show notes (from Riverside)
+                  </label>
+                  <textarea
+                    value={form.descriptionOriginal}
+                    onChange={(e) => setForm((f) => ({ ...f, descriptionOriginal: e.target.value }))}
+                    rows={5}
+                    className="input"
+                    placeholder="Paste Riverside show notes (optional — used as backup if no transcript)"
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right — metadata and assets */}
+          <div className="space-y-6">
+
+            {/* Episode details */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-900 mb-4">Episode details</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Episode number</label>
+                  <input
+                    type="number"
+                    value={form.episodeNumber}
+                    onChange={(e) => setForm((f) => ({ ...f, episodeNumber: e.target.value }))}
+                    className="input"
+                    placeholder="e.g. 16"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Guest name</label>
+                  <input
+                    type="text"
+                    value={form.guestName}
+                    onChange={(e) => setForm((f) => ({ ...f, guestName: e.target.value }))}
+                    className="input"
+                    placeholder="Full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Guest email</label>
+                  <input
+                    type="email"
+                    value={form.guestEmail}
+                    onChange={(e) => setForm((f) => ({ ...f, guestEmail: e.target.value }))}
+                    className="input"
+                    placeholder="guest@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Publish date</label>
+                  <input
+                    type="date"
+                    value={form.publishDate}
+                    onChange={(e) => setForm((f) => ({ ...f, publishDate: e.target.value }))}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Captivate episode ID
+                  </label>
+                  <input
+                    type="text"
+                    value={form.captivateId}
+                    onChange={(e) => setForm((f) => ({ ...f, captivateId: e.target.value }))}
+                    className="input"
+                    placeholder="Paste from Captivate draft"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Create the draft in Captivate first, then paste the ID here
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Assets */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-900 mb-4">Assets</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Cover art
+                  </label>
+                  {form.coverArtUrl ? (
+                    <div>
+                      <img
+                        src={form.coverArtUrl}
+                        alt="Cover art"
+                        className="w-full rounded-lg border border-gray-200 mb-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, coverArtUrl: "" }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="flex items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-brand-purple transition-colors">
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-gray-600">
+                            {uploadingArt ? "Uploading..." : "Click to upload cover art"}
+                          </p>
+                          <p className="text-xs text-gray-400">JPG, PNG, WebP</p>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleCoverArtUpload}
+                          className="hidden"
+                          disabled={uploadingArt}
+                        />
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Upload after Canva artwork is ready
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    MP4 URL (Google Drive)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.mp4Url}
+                    onChange={(e) => setForm((f) => ({ ...f, mp4Url: e.target.value }))}
+                    className="input"
+                    placeholder="Paste Google Drive MP4 link"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Can be added later before publishing
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Save button */}
+            <button
+              type="submit"
+              disabled={saving || !form.riversideTitle}
+              className="w-full px-4 py-3 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Creating episode..." : "Create episode → Generate with Claude"}
+            </button>
+            <p className="text-xs text-gray-400 text-center">
+              Claude will generate all content automatically after saving
+            </p>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
+Step 8 — Add re-sync button and cover art upload to the episode edit page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+Replace it with:
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
+
+Find this exact string:
+  const [form, setForm] = useState({
+    titleYoutube: "",
+    titlePodcast: "",
+    descriptionYoutube: "",
+    descriptionWebsite: "",
+    guestName: "",
+    guestBio: "",
+    guestEmail: "",
+    affiliateLink: "",
+    swipeCopy: "",
+    systemeContactId: "",
+    crisisCategory: "",
+    tags: "",
+    publishStatus: "draft",
+    youtubeId: "",
+    mp4Url: "",
+  });
+
+Replace it with:
+  const [form, setForm] = useState({
+    titleYoutube: "",
+    titlePodcast: "",
+    descriptionYoutube: "",
+    descriptionWebsite: "",
+    guestName: "",
+    guestBio: "",
+    guestEmail: "",
+    affiliateLink: "",
+    swipeCopy: "",
+    systemeContactId: "",
+    crisisCategory: "",
+    tags: "",
+    publishStatus: "draft",
+    youtubeId: "",
+    mp4Url: "",
+    coverArtUrl: "",
+    youtubeThumbnailUrl: "",
+  });
+
+Find this exact string:
+      youtubeId: data.youtubeId ?? "",
+      mp4Url: data.mp4Url ?? "",
+    });
+
+Replace it with:
+      youtubeId: data.youtubeId ?? "",
+      mp4Url: data.mp4Url ?? "",
+      coverArtUrl: data.coverArtUrl ?? "",
+      youtubeThumbnailUrl: data.youtubeThumbnailUrl ?? "",
+    });
+
+Find this exact string:
+      body: JSON.stringify({
+        ...form,
+        tags: form.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        mp4Url: form.mp4Url,
+      }),
+
+Replace it with:
+      body: JSON.stringify({
+        ...form,
+        tags: form.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+      }),
+
+Find this exact string:
+  async function handleSendToMake() {
+
+Add the following two functions immediately before it:
+  async function handleResync() {
+    setResyncing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/resync`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    setMessage({
+      type: data.success ? "success" : "error",
+      text: data.message ?? data.error ?? "Resync failed",
+    });
+    if (data.success) loadEpisode();
+    setResyncing(false);
+  }
+
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: `Cover art uploaded — URL: ${data.url}` });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
+  }
+
+Find this exact string:
+            <Field label="MP4 URL (Google Drive)">
+              <input
+                type="text"
+                value={form.mp4Url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mp4Url: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste Google Drive MP4 link"
+              />
+              {episode.episodeNumber && episode.guestName && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Expected folder: LLS-{String(episode.episodeNumber).padStart(3, "0")} {episode.guestName}
+                </p>
+              )}
+            </Field>
+
+Replace it with:
+            <Field label="MP4 URL (Google Drive)">
+              <input
+                type="text"
+                value={form.mp4Url}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, mp4Url: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste Google Drive MP4 link"
+              />
+              {episode.episodeNumber && episode.guestName && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Expected folder: LLS-{String(episode.episodeNumber).padStart(3, "0")} {episode.guestName}
+                </p>
+              )}
+            </Field>
+
+            <Field label="Cover art">
+              {form.coverArtUrl ? (
+                <div>
+                  <img
+                    src={form.coverArtUrl}
+                    alt="Cover art"
+                    className="w-full rounded-lg border border-gray-200 mb-2"
+                  />
+                  <input
+                    type="text"
+                    value={form.coverArtUrl}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, coverArtUrl: e.target.value }))
+                    }
+                    className="input text-xs"
+                  />
+                </div>
+              ) : (
+                <label className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-brand-purple transition-colors">
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-gray-600">
+                      {uploadingArt ? "Uploading..." : "Click to upload cover art"}
+                    </p>
+                    <p className="text-xs text-gray-400">JPG, PNG, WebP</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleCoverArtUpload}
+                    className="hidden"
+                    disabled={uploadingArt}
+                  />
+                </label>
+              )}
+            </Field>
+
+            <Field label="YouTube thumbnail URL">
+              <input
+                type="text"
+                value={form.youtubeThumbnailUrl}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, youtubeThumbnailUrl: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste YouTube thumbnail URL"
+              />
+            </Field>
+
+Find this exact string:
+            <button
+              onClick={handleSendToMake}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send to Make.com"}
+            </button>
+
+Replace it with:
+            <button
+              onClick={handleResync}
+              disabled={resyncing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {resyncing ? "Syncing..." : "Re-sync from Captivate"}
+            </button>
+
+            <button
+              onClick={handleSendToMake}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send to Make.com"}
+            </button>
+
+
+Step 9 — Update the PATCH route to allow new fields.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/route.ts
+
+Find this exact string:
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "guestEmail",
+    "affiliateLink",
+    "swipeCopy",
+    "systemeContactId",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "mp4Url",
+    "ctaId",
+  ];
+
+Replace it with:
+  const allowed = [
+    "titleYoutube",
+    "titlePodcast",
+    "descriptionYoutube",
+    "descriptionWebsite",
+    "guestName",
+    "guestBio",
+    "guestEmail",
+    "affiliateLink",
+    "swipeCopy",
+    "systemeContactId",
+    "crisisCategory",
+    "tags",
+    "publishStatus",
+    "youtubeId",
+    "mp4Url",
+    "coverArtUrl",
+    "youtubeThumbnailUrl",
+    "ctaId",
+  ];
+
+
+Step 10 — Update the publish webhook payload to include coverArtUrl and captivateId.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/publish/route.ts
+
+Find this exact string:
+function buildPayload(episode: {
+  id: string;
+  episodeNumber: number | null;
+  captivatePublishedAt: Date | null;
+  guestName: string | null;
+  guestEmail: string | null;
+  affiliateLink: string | null;
+  swipeCopy: string | null;
+  systemeContactId: string | null;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  titlePodcast: string | null;
+  descriptionYoutube: string | null;
+  descriptionWebsite: string | null;
+  descriptionOriginal: string | null;
+  captivateId: string | null;
+  thumbnailUrl: string | null;
+  audioUrl: string | null;
+  mp4Url: string | null;
+  tags: string[];
+  crisisCategory: string | null;
+}) {
+
+Replace it with:
+function buildPayload(episode: {
+  id: string;
+  episodeNumber: number | null;
+  captivatePublishedAt: Date | null;
+  guestName: string | null;
+  guestEmail: string | null;
+  affiliateLink: string | null;
+  swipeCopy: string | null;
+  systemeContactId: string | null;
+  titleOriginal: string;
+  titleYoutube: string | null;
+  titlePodcast: string | null;
+  descriptionYoutube: string | null;
+  descriptionWebsite: string | null;
+  descriptionOriginal: string | null;
+  captivateId: string | null;
+  thumbnailUrl: string | null;
+  coverArtUrl: string | null;
+  youtubeThumbnailUrl: string | null;
+  audioUrl: string | null;
+  mp4Url: string | null;
+  tags: string[];
+  crisisCategory: string | null;
+}) {
+
+Find this exact string:
+    thumb: episode.thumbnailUrl,
+    showNotes: episode.descriptionWebsite,
+
+Replace it with:
+    thumb: episode.youtubeThumbnailUrl ?? episode.thumbnailUrl,
+    coverArtUrl: episode.coverArtUrl ?? episode.thumbnailUrl,
+    showNotes: episode.descriptionWebsite,
+
+
+Verification: Confirm that:
+1. prisma/schema.prisma has coverArtUrl, youtubeThumbnailUrl, riversideTitle, riversideKeywords fields and db:push completed
+2. app/api/admin/upload/route.ts was created
+3. app/api/admin/episodes/create/route.ts was created
+4. app/api/admin/episodes/[id]/resync/route.ts was created
+5. app/admin/(protected)/episodes/new/page.tsx was created with the full creation form
+6. The episode edit page has Re-sync from Captivate button, cover art upload, and YouTube thumbnail URL field
+7. lib/claude.ts now accepts transcript, riversideTitle, riversideKeywords parameters
+8. The publish webhook payload includes coverArtUrl and youtubeThumbnailUrl separately
+9. TypeScript typecheck passes with zero errors
+10. Navigating to /admin/episodes/new shows the creation form with transcript paste area and cover art upload

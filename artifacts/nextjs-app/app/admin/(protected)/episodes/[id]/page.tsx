@@ -26,6 +26,8 @@ interface Episode {
   thumbnailUrl: string | null;
   youtubeId: string | null;
   mp4Url: string | null;
+  coverArtUrl: string | null;
+  youtubeThumbnailUrl: string | null;
   captivatePublishedAt: string | null;
 }
 
@@ -49,6 +51,8 @@ export default function EpisodeDetailPage() {
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -66,6 +70,8 @@ export default function EpisodeDetailPage() {
     publishStatus: "draft",
     youtubeId: "",
     mp4Url: "",
+    coverArtUrl: "",
+    youtubeThumbnailUrl: "",
     guestEmail: "",
     affiliateLink: "",
     swipeCopy: "",
@@ -88,6 +94,8 @@ export default function EpisodeDetailPage() {
       publishStatus: data.publishStatus ?? "draft",
       youtubeId: data.youtubeId ?? "",
       mp4Url: data.mp4Url ?? "",
+      coverArtUrl: data.coverArtUrl ?? "",
+      youtubeThumbnailUrl: data.youtubeThumbnailUrl ?? "",
       guestEmail: data.guestEmail ?? "",
       affiliateLink: data.affiliateLink ?? "",
       swipeCopy: data.swipeCopy ?? "",
@@ -117,6 +125,43 @@ export default function EpisodeDetailPage() {
       setMessage({ type: "error", text: "Save failed" });
     }
     setSaving(false);
+  }
+
+  async function handleResync() {
+    setResyncing(true);
+    setMessage(null);
+    const res = await fetch(
+      `/nextjs-app/api/admin/episodes/${id}/resync`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    setMessage({
+      type: data.success ? "success" : "error",
+      text: data.message ?? data.error ?? "Resync failed",
+    });
+    if (data.success) loadEpisode();
+    setResyncing(false);
+  }
+
+  async function handleCoverArtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingArt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "episode-art");
+    const res = await fetch("/nextjs-app/api/admin/upload", {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setForm((f) => ({ ...f, coverArtUrl: data.url }));
+      setMessage({ type: "success", text: `Cover art uploaded — URL: ${data.url}` });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Upload failed" });
+    }
+    setUploadingArt(false);
   }
 
   async function handleSendToMake() {
@@ -459,6 +504,54 @@ export default function EpisodeDetailPage() {
               )}
             </Field>
 
+            <Field label="Cover art">
+              {form.coverArtUrl ? (
+                <div>
+                  <img
+                    src={form.coverArtUrl}
+                    alt="Cover art"
+                    className="w-full rounded-lg border border-gray-200 mb-2"
+                  />
+                  <input
+                    type="text"
+                    value={form.coverArtUrl}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, coverArtUrl: e.target.value }))
+                    }
+                    className="input text-xs"
+                  />
+                </div>
+              ) : (
+                <label className="flex items-center justify-center w-full h-20 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-brand-purple transition-colors">
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-gray-600">
+                      {uploadingArt ? "Uploading..." : "Click to upload cover art"}
+                    </p>
+                    <p className="text-xs text-gray-400">JPG, PNG, WebP</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleCoverArtUpload}
+                    className="hidden"
+                    disabled={uploadingArt}
+                  />
+                </label>
+              )}
+            </Field>
+
+            <Field label="YouTube thumbnail URL">
+              <input
+                type="text"
+                value={form.youtubeThumbnailUrl}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, youtubeThumbnailUrl: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste YouTube thumbnail URL"
+              />
+            </Field>
+
             {episode.thumbnailUrl && (
               <Field label="Thumbnail">
                 <img
@@ -491,6 +584,14 @@ export default function EpisodeDetailPage() {
               className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
+            </button>
+
+            <button
+              onClick={handleResync}
+              disabled={resyncing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {resyncing ? "Syncing..." : "Re-sync from Captivate"}
             </button>
 
             <button
