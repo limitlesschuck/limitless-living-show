@@ -29,6 +29,7 @@ interface Episode {
   coverArtUrl: string | null;
   youtubeThumbnailUrl: string | null;
   captivatePublishedAt: string | null;
+  slug: string | null;
 }
 
 const CATEGORIES = [
@@ -59,6 +60,8 @@ export default function EpisodeDetailPage() {
     text: string;
   } | null>(null);
 
+  const [slugEditing, setSlugEditing] = useState(false);
+
   const [form, setForm] = useState({
     titleYoutube: "",
     titlePodcast: "",
@@ -77,6 +80,7 @@ export default function EpisodeDetailPage() {
     affiliateLink: "",
     swipeCopy: "",
     systemeContactId: "",
+    slug: "",
   });
 
   async function loadEpisode() {
@@ -101,6 +105,7 @@ export default function EpisodeDetailPage() {
       affiliateLink: data.affiliateLink ?? "",
       swipeCopy: data.swipeCopy ?? "",
       systemeContactId: data.systemeContactId ?? "",
+      slug: data.slug ?? "",
     });
     setLoading(false);
   }
@@ -505,6 +510,53 @@ export default function EpisodeDetailPage() {
                   </option>
                 ))}
               </select>
+            </Field>
+
+            <Field label="Public URL">
+              {slugEditing ? (
+                <div className="flex gap-2 items-center">
+                  <span className="text-xs text-gray-400 shrink-0">…/episodes/</span>
+                  <input
+                    type="text"
+                    value={form.slug}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, slug: e.target.value }))
+                    }
+                    className="input flex-1"
+                    placeholder="episode-slug"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSlugEditing(false)}
+                    className="text-xs text-gray-500 hover:text-gray-900 shrink-0"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {form.slug ? (
+                    <a
+                      href={`https://limitlesslivingpodcast.com/episodes/${form.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-brand-purple hover:underline truncate"
+                    >
+                      limitlesslivingpodcast.com/episodes/{form.slug}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-400">No slug set</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSlugEditing(true)}
+                    className="text-xs text-gray-400 hover:text-gray-700 shrink-0 underline"
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
             </Field>
 
             <Field label="YouTube video ID">

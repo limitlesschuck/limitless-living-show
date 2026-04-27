@@ -59,6 +59,7 @@ export async function PATCH(
     "coverArtUrl",
     "youtubeThumbnailUrl",
     "ctaId",
+    "slug",
   ];
 
   const data: Record<string, unknown> = {};
