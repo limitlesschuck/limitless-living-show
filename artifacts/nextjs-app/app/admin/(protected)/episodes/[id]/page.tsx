@@ -30,6 +30,7 @@ interface Episode {
   youtubeThumbnailUrl: string | null;
   captivatePublishedAt: string | null;
   slug: string | null;
+  captivatePlayerId: string | null;
 }
 
 const CATEGORIES = [
@@ -81,6 +82,7 @@ export default function EpisodeDetailPage() {
     swipeCopy: "",
     systemeContactId: "",
     slug: "",
+    captivatePlayerId: "",
   });
 
   async function loadEpisode() {
@@ -106,6 +108,7 @@ export default function EpisodeDetailPage() {
       swipeCopy: data.swipeCopy ?? "",
       systemeContactId: data.systemeContactId ?? "",
       slug: data.slug ?? "",
+      captivatePlayerId: data.captivatePlayerId ?? "",
     });
     setLoading(false);
   }
@@ -557,6 +560,21 @@ export default function EpisodeDetailPage() {
                   </button>
                 </div>
               )}
+            </Field>
+
+            <Field label="Captivate player ID">
+              <input
+                type="text"
+                value={form.captivatePlayerId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, captivatePlayerId: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste from Captivate episode editor URL"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Found in Captivate as the episode slug e.g. 0f6aa6a5-d1cb-4b66-86bd-9987f951da69
+              </p>
             </Field>
 
             <Field label="YouTube video ID">
