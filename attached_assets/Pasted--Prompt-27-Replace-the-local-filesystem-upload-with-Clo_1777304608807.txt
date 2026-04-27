@@ -1,0 +1,131 @@
+## Prompt 27
+
+Replace the local filesystem upload with Cloudflare R2 storage so uploaded images persist in production.
+
+Step 1 — Install the AWS S3 SDK (R2 is S3-compatible).
+
+Run:
+pnpm --filter @workspace/nextjs-app add @aws-sdk/client-s3
+
+
+Step 2 — Replace the upload API route with R2 storage.
+
+File to edit: artifacts/nextjs-app/app/api/admin/upload/route.ts
+
+Replace the entire contents with:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+const R2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_R2_TOKEN ?? "",
+    secretAccessKey: process.env.CLOUDFLARE_R2_TOKEN ?? "",
+  },
+});
+
+const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? "limitless-living-media";
+const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const formData = await req.formData();
+  const file = formData.get("file") as File | null;
+  const folder = (formData.get("folder") as string) ?? "episode-art";
+
+  if (!file) {
+    return NextResponse.json({ error: "No file provided" }, { status: 400 });
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    return NextResponse.json(
+      { error: "Only JPEG, PNG, and WebP images are allowed" },
+      { status: 400 }
+    );
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const safeName = file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+  const filename = `${safeName}-${Date.now()}.${ext}`;
+  const key = `${folder}/${filename}`;
+
+  const bytes = await file.arrayBuffer();
+
+  try {
+    await R2.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: Buffer.from(bytes),
+        ContentType: file.type,
+      })
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    console.error("R2 upload error:", message);
+    return NextResponse.json({ error: `R2 upload failed: ${message}` }, { status: 500 });
+  }
+
+  const publicUrl = `${PUBLIC_URL}/${key}`;
+  return NextResponse.json({ url: publicUrl, filename });
+}
+
+
+Step 3 — Add the R2 public URL domain to Next.js image config.
+
+File to edit: artifacts/nextjs-app/next.config.mjs
+
+Find this exact string:
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "artwork.captivate.fm",
+      },
+      {
+        protocol: "https",
+        hostname: "podcasts.captivate.fm",
+      },
+    ],
+  },
+
+Replace it with:
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "artwork.captivate.fm",
+      },
+      {
+        protocol: "https",
+        hostname: "podcasts.captivate.fm",
+      },
+      {
+        protocol: "https",
+        hostname: "pub-f55ad41545c5408aba9e32ba75a9239f.r2.dev",
+      },
+    ],
+  },
+
+
+Verification: Confirm that:
+1. @aws-sdk/client-s3 installed without errors
+2. upload/route.ts now uses S3Client pointing to Cloudflare R2 endpoint
+3. The R2 public URL domain is added to next.config.mjs
+4. TypeScript typecheck passes with zero errors
+5. Upload a cover art image on any episode — confirm the returned URL starts with https://pub-f55ad41545c5408aba9e32ba75a9239f.r2.dev
+6. Check the Cloudflare R2 bucket dashboard and confirm the file appears there
+7. Deploy to production and confirm uploads work on limitlesslivingpodcast.com

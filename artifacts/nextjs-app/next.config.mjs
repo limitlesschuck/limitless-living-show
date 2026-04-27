@@ -22,6 +22,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "podcasts.captivate.fm",
       },
+      {
+        protocol: "https",
+        hostname: "pub-f55ad41545c5408aba9e32ba75a9239f.r2.dev",
+      },
     ],
   },
 };

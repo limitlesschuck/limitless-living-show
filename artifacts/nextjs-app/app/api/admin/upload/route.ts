@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+const R2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_R2_TOKEN ?? "",
+    secretAccessKey: process.env.CLOUDFLARE_R2_TOKEN ?? "",
+  },
+});
+
+const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? "limitless-living-media";
+const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -33,18 +44,25 @@ export async function POST(req: NextRequest) {
     .replace(/-+/g, "-")
     .toLowerCase();
   const filename = `${safeName}-${Date.now()}.${ext}`;
-
-  const uploadDir = join(process.cwd(), "public", folder);
-  await mkdir(uploadDir, { recursive: true });
-  const filePath = join(uploadDir, filename);
+  const key = `${folder}/${filename}`;
 
   const bytes = await file.arrayBuffer();
-  await writeFile(filePath, Buffer.from(bytes));
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
-    ?? process.env.NEXTAUTH_URL?.replace(/\/$/, "").replace(/\/api\/auth$/, "").replace(/\/nextjs-app$/, "")
-    ?? "";
-  const publicUrl = `${appUrl}/${folder}/${filename}`;
+  try {
+    await R2.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: Buffer.from(bytes),
+        ContentType: file.type,
+      })
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    console.error("R2 upload error:", message);
+    return NextResponse.json({ error: `R2 upload failed: ${message}` }, { status: 500 });
+  }
 
+  const publicUrl = `${PUBLIC_URL}/${key}`;
   return NextResponse.json({ url: publicUrl, filename });
 }
