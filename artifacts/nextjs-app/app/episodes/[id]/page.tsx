@@ -125,15 +125,16 @@ export default async function EpisodeDetailPage({
           </div>
         ) : null}
 
-        {/* Audio player */}
-        {episode.audioUrl && (
-          <div className="mb-8 bg-gray-50 rounded-xl p-4 border border-gray-100">
-            <p className="text-xs font-medium text-gray-500 mb-2">
-              Listen to the episode
-            </p>
-            <audio controls className="w-full" src={episode.audioUrl}>
-              Your browser does not support the audio element.
-            </audio>
+        {/* Captivate embedded player */}
+        {episode.captivateId && (
+          <div className="mb-8" style={{ width: "100%", height: "200px", borderRadius: "6px", overflow: "hidden" }}>
+            <iframe
+              style={{ width: "100%", height: "200px" }}
+              frameBorder="no"
+              scrolling="no"
+              allow="clipboard-write"
+              src={`https://player.captivate.fm/episode/${episode.captivateId}/`}
+            />
           </div>
         )}
 
