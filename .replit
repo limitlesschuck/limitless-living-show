@@ -22,7 +22,7 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-NEXTAUTH_SECRET = "90b3d34a7bfc3122bc9b7cbeb26eea06bf9df6a94be8303fcec69e8163a3fba7"
+NEXTAUTH_SECRET = "lls-production-secret-2024-xK9mP3qR7vN2"
 NEXT_PUBLIC_APP_URL = "https://limitlesslivingpodcast.com/"
 NEXTAUTH_URL = "https://limitlesslivingpodcast.com/api/auth"
 
