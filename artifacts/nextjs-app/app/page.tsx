@@ -3,6 +3,8 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import HeroPhoto from "@/components/HeroPhoto";
 
+export const dynamic = 'force-dynamic';
+
 const CATEGORY_LABELS: Record<string, string> = {
   grief: "Grief & loss",
   relationship: "Relationship",

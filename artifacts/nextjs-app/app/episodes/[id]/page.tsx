@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 
+export const dynamic = 'force-dynamic';
+
 const CATEGORY_LABELS: Record<string, string> = {
   grief: "Grief & loss",
   relationship: "Relationship & divorce",
