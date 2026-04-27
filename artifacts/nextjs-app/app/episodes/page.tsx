@@ -190,9 +190,12 @@ export default async function EpisodesPage({
           <p className="text-sm text-gray-400">
             © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap justify-center">
             <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
             <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+            <a href="https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">Apple Podcasts</a>
+            <a href="https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">Spotify</a>
+            <a href="https://www.youtube.com/@limitlesslivingpodcast" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">YouTube</a>
           </div>
         </div>
       </footer>

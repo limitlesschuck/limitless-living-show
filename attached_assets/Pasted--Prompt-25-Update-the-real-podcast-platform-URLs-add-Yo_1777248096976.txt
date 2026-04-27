@@ -1,0 +1,235 @@
+## Prompt 25
+
+Update the real podcast platform URLs, add YouTube channel link, and secure the production environment.
+
+Step 1 — Update platform URLs in the homepage.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Find this exact string:
+const PLATFORMS = [
+  {
+    name: "Apple Podcasts",
+    href: "https://podcasts.apple.com/podcast/the-limitless-living-show",
+    color: "#9B59B6",
+  },
+  {
+    name: "Spotify",
+    href: "https://open.spotify.com/show/limitlessliving",
+    color: "#1DB954",
+  },
+];
+
+Replace it with:
+const PLATFORMS = [
+  {
+    name: "Apple Podcasts",
+    href: "https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846",
+    color: "#9B59B6",
+  },
+  {
+    name: "Spotify",
+    href: "https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC",
+    color: "#1DB954",
+  },
+  {
+    name: "YouTube",
+    href: "https://www.youtube.com/@limitlesslivingpodcast",
+    color: "#FF0000",
+  },
+];
+
+
+Step 2 — Update the SiteHeader with real platform URLs and add YouTube link.
+
+File to edit: artifacts/nextjs-app/components/SiteHeader.tsx
+
+Replace the entire contents with:
+
+import Link from "next/link";
+
+export default function SiteHeader() {
+  return (
+    <header className="bg-brand-purple border-b border-brand-purple-mid">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="text-white font-bold text-lg tracking-tight">
+            Limitless <span className="text-brand-gold">Living</span>
+          </span>
+        </Link>
+        <nav className="flex items-center gap-4 sm:gap-6">
+          <Link
+            href="/episodes"
+            className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:block"
+          >
+            Episodes
+          </Link>
+          
+            href="https://www.youtube.com/@limitlesslivingpodcast"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:block"
+          >
+            YouTube
+          </a>
+          <Link
+            href="/assessment"
+            className="text-sm bg-brand-gold text-brand-purple-dark font-semibold px-4 py-1.5 rounded-full hover:bg-brand-gold-light transition-colors"
+          >
+            Free assessment
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+
+Step 3 — Update the footer on the homepage with real URLs.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Find this exact string:
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck
+            Anderson
+          </p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/episodes"
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Episodes
+            </Link>
+            <Link
+              href="/assessment"
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Assessment
+            </Link>
+          </div>
+        </div>
+      </footer>
+
+Replace it with:
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4 flex-wrap justify-center">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">
+              Episodes
+            </Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">
+              Assessment
+            </Link>
+            <a href="https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+              Apple Podcasts
+            </a>
+            <a href="https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+              Spotify
+            </a>
+            <a href="https://www.youtube.com/@limitlesslivingpodcast" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+              YouTube
+            </a>
+          </div>
+        </div>
+      </footer>
+
+
+Step 4 — Update footer on episodes listing page.
+
+File to edit: artifacts/nextjs-app/app/episodes/page.tsx
+
+Find this exact string:
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+          </div>
+        </div>
+      </footer>
+
+Replace it with:
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4 flex-wrap justify-center">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+            <a href="https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">Apple Podcasts</a>
+            <a href="https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">Spotify</a>
+            <a href="https://www.youtube.com/@limitlesslivingpodcast" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">YouTube</a>
+          </div>
+        </div>
+      </footer>
+
+
+Step 5 — Update footer on episode detail page.
+
+File to edit: artifacts/nextjs-app/app/episodes/[id]/page.tsx
+
+Find this exact string:
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+          </div>
+        </div>
+      </footer>
+
+Replace it with:
+      <footer className="bg-brand-purple-dark border-t border-brand-purple mt-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-gray-400">
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+          </p>
+          <div className="flex items-center gap-4 flex-wrap justify-center">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">Episodes</Link>
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">Assessment</Link>
+            <a href="https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">Apple Podcasts</a>
+            <a href="https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">Spotify</a>
+            <a href="https://www.youtube.com/@limitlesslivingpodcast" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">YouTube</a>
+          </div>
+        </div>
+      </footer>
+
+
+Step 6 — Change the admin password.
+
+Run this command to generate a new bcrypt hash — replace YOUR_NEW_PASSWORD with a strong password:
+
+pnpm --filter @workspace/nextjs-app exec node -e "
+const bcrypt = require('bcryptjs');
+bcrypt.hash('YOUR_NEW_PASSWORD', 12).then(h => console.log(h));
+"
+
+Then run this to update the admin user — replace HASH_HERE with the output from above:
+
+pnpm --filter @workspace/nextjs-app exec node -e "
+const { PrismaClient } = require('@prisma/client');
+const p = new PrismaClient();
+p.user.update({ where: { email: 'admin@limitlesslivingshow.com' }, data: { password: 'HASH_HERE' }}).then(r => { console.log('Password updated for', r.email); p.\$disconnect(); });
+"
+
+
+Verification: Confirm that:
+1. Homepage shows Apple Podcasts, Spotify, and YouTube in the Listen on section
+2. SiteHeader has YouTube link alongside Episodes
+3. All three footers show Apple Podcasts, Spotify, and YouTube links
+4. TypeScript typecheck passes with zero errors
+5. Admin password has been changed from admin123
+6. Deploy to production and confirm changes are live at limitlesslivingpodcast.com

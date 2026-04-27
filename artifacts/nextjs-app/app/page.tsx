@@ -15,11 +15,15 @@ const CATEGORY_LABELS: Record<string, string> = {
 const PLATFORMS = [
   {
     name: "Apple Podcasts",
-    href: "https://podcasts.apple.com/podcast/the-limitless-living-show",
+    href: "https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846",
   },
   {
     name: "Spotify",
-    href: "https://open.spotify.com/show/limitlessliving",
+    href: "https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC",
+  },
+  {
+    name: "YouTube",
+    href: "https://www.youtube.com/@limitlesslivingpodcast",
   },
 ];
 
@@ -332,22 +336,24 @@ export default async function HomePage() {
       <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-400">
-            © {new Date().getFullYear()} Limitless Living Show with Chuck
-            Anderson
+            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
           </p>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/episodes"
-              className="text-xs text-gray-400 hover:text-white transition-colors"
-            >
+          <div className="flex items-center gap-4 flex-wrap justify-center">
+            <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">
               Episodes
             </Link>
-            <Link
-              href="/assessment"
-              className="text-xs text-gray-400 hover:text-white transition-colors"
-            >
+            <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">
               Assessment
             </Link>
+            <a href="https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+              Apple Podcasts
+            </a>
+            <a href="https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+              Spotify
+            </a>
+            <a href="https://www.youtube.com/@limitlesslivingpodcast" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+              YouTube
+            </a>
           </div>
         </div>
       </footer>
