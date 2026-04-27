@@ -5,11 +5,12 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Create super admin user
-  const passwordHash = await bcrypt.hash("admin123", 12);
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "changeme-set-ADMIN_PASSWORD-in-secrets";
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@limitlesslivingshow.com" },
-    update: {},
+    update: { password: passwordHash },
     create: {
       email: "admin@limitlesslivingshow.com",
       name: "Admin",
