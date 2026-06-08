@@ -1,0 +1,92 @@
+## Prompt 42
+
+Update the episodes listing page to respect the site config image setting.
+
+File to edit: artifacts/nextjs-app/app/episodes/page.tsx
+
+Add this import at the top of the file after the existing imports:
+import { prisma } from "@/lib/prisma";
+
+Then add this function before the main page component:
+async function getSiteConfig(): Promise<{ episodeCardImage: "youtube_thumbnail" | "cover_art" }> {
+  try {
+    const record = await prisma.siteConfig.findFirst();
+    const config = record?.config as { episodeCardImage?: string } | null;
+    return {
+      episodeCardImage: (config?.episodeCardImage as "youtube_thumbnail" | "cover_art") ?? "youtube_thumbnail",
+    };
+  } catch {
+    return { episodeCardImage: "youtube_thumbnail" };
+  }
+}
+
+Then find this exact string:
+export default async function EpisodesPage() {
+
+Add siteConfig to the data fetching. Find this exact string:
+  const episodes = await prisma.episode.findMany({
+
+Replace it with:
+  const [siteConfig, episodes] = await Promise.all([
+    getSiteConfig(),
+    prisma.episode.findMany({
+
+Then find the closing of the episodes query. Find this exact string:
+    orderBy: { captivatePublishedAt: "desc" },
+  });
+
+Replace it with:
+    orderBy: { captivatePublishedAt: "desc" },
+  })]);
+
+Then find this exact string:
+              const displayImage =
+                ep.youtubeThumbnailUrl || ep.coverArtUrl || ep.thumbnailUrl;
+
+Replace it with:
+              const displayImage =
+                siteConfig.episodeCardImage === "cover_art"
+                  ? ep.coverArtUrl || ep.thumbnailUrl
+                  : ep.youtubeThumbnailUrl || ep.coverArtUrl || ep.thumbnailUrl;
+
+Then find this exact string (episodes listing card container):
+                    <div className="relative aspect-video bg-brand-purple-dark overflow-hidden rounded-t-xl">
+
+Replace it with:
+                    <div className={`relative bg-brand-purple-dark overflow-hidden rounded-t-xl ${siteConfig.episodeCardImage === "cover_art" ? "aspect-square" : "aspect-video"}`}>
+
+Then find this exact string (episodes listing card image):
+                    {displayImage ? (
+                      <img
+                        src={displayImage}
+                        alt={title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                        <span className="text-brand-gold text-2xl font-bold">
+                          LLS
+                        </span>
+                      </div>
+                    )}
+
+Replace it with:
+                    {displayImage ? (
+                      <img
+                        src={displayImage}
+                        alt={title}
+                        className={`w-full h-full ${siteConfig.episodeCardImage === "cover_art" ? "object-contain" : "object-cover group-hover:scale-105 transition-transform duration-300"}`}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+                        <span className="text-brand-gold text-2xl font-bold">
+                          LLS
+                        </span>
+                      </div>
+                    )}
+
+Verification: Confirm that:
+1. Episodes listing page fetches siteConfig alongside episodes
+2. Image priority and card aspect ratio respect the siteConfig.episodeCardImage setting
+3. TypeScript typecheck passes with zero errors
+4. Test in dev with cover art mode — episodes listing page shows square cards with Captivate artwork
