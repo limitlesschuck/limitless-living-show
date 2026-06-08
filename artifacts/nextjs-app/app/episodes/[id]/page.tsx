@@ -178,19 +178,6 @@ export default async function EpisodeDetailPage({
           </div>
         )}
 
-        {/* Episode cover art — shown when different from the video thumbnail */}
-        {episode.coverArtUrl && episode.coverArtUrl !== episode.youtubeThumbnailUrl && (
-          <div className="mb-8">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">
-              Episode artwork
-            </h2>
-            <img
-              src={episode.coverArtUrl}
-              alt={`${title} cover art`}
-              className="w-48 rounded-xl border border-gray-100 shadow-sm"
-            />
-          </div>
-        )}
 
         {/* Bottom CTA */}
         <div className="border-t border-gray-100 pt-8 text-center">
