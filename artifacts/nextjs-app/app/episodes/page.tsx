@@ -41,6 +41,18 @@ async function getEpisodes(category?: string) {
   });
 }
 
+async function getSiteConfig(): Promise<{ episodeCardImage: "youtube_thumbnail" | "cover_art" }> {
+  try {
+    const record = await prisma.siteConfig.findFirst();
+    const config = record?.config as { episodeCardImage?: string } | null;
+    return {
+      episodeCardImage: (config?.episodeCardImage as "youtube_thumbnail" | "cover_art") ?? "youtube_thumbnail",
+    };
+  } catch {
+    return { episodeCardImage: "youtube_thumbnail" };
+  }
+}
+
 function formatDuration(seconds: number | null) {
   if (!seconds) return null;
   return `${Math.floor(seconds / 60)} min`;
@@ -52,7 +64,10 @@ export default async function EpisodesPage({
   searchParams: { category?: string };
 }) {
   const category = searchParams.category;
-  const episodes = await getEpisodes(category);
+  const [siteConfig, episodes] = await Promise.all([
+    getSiteConfig(),
+    getEpisodes(category),
+  ]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -119,7 +134,9 @@ export default async function EpisodesPage({
                 : null;
               const duration = formatDuration(ep.durationSeconds);
               const displayImage =
-                ep.youtubeThumbnailUrl || ep.coverArtUrl || ep.thumbnailUrl;
+                siteConfig.episodeCardImage === "cover_art"
+                  ? ep.coverArtUrl || ep.thumbnailUrl
+                  : ep.youtubeThumbnailUrl || ep.coverArtUrl || ep.thumbnailUrl;
 
               return (
                 <Link
@@ -127,12 +144,12 @@ export default async function EpisodesPage({
                   href={ep.slug ? `/episodes/${ep.slug}` : `/episodes/${ep.id}`}
                   className="group episode-card block"
                 >
-                  <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
+                  <div className={`relative bg-brand-purple-dark overflow-hidden ${siteConfig.episodeCardImage === "cover_art" ? "aspect-square" : "aspect-video"}`}>
                     {displayImage ? (
                       <img
                         src={displayImage}
                         alt={title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className={`w-full h-full ${siteConfig.episodeCardImage === "cover_art" ? "object-contain" : "object-cover group-hover:scale-105 transition-transform duration-300"}`}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-brand-purple">
