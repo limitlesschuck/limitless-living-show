@@ -15,6 +15,26 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/login/page.js"
+    ],
+    "/admin/(protected)/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/(protected)/page.js"
+    ],
+    "/admin/(protected)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/(protected)/layout.js"
+    ],
+    "/admin/(protected)/assessment/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/(protected)/assessment/page.js"
+    ],
+    "/assessment/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/assessment/page.js"
     ]
   }
 }
