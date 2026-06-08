@@ -187,7 +187,7 @@ function EpisodeCard({
 
   return (
     <Link href={episodeHref} className="episode-card group block">
-      <div className="relative aspect-video bg-brand-purple-dark overflow-hidden">
+      <div className={`relative bg-brand-purple-dark overflow-hidden ${imageMode === "cover_art" ? "aspect-square" : "aspect-video"}`}>
         {displayImage ? (
           <img
             src={displayImage}
