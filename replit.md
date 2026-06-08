@@ -59,6 +59,10 @@ Prisma schema pushed to Replit's PostgreSQL. Tables created:
 ### API Server (`artifacts/api-server`)
 Express 5 REST API (legacy scaffold, not actively used by Next.js app)
 
+## User Preferences
+
+- **Git**: Never run `git add`, `git commit`, or `git push`. Make code changes only — the user handles all git operations manually after testing.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages

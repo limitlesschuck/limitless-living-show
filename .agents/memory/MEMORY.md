@@ -1,0 +1,1 @@
+- [Git workflow preference](git-workflow.md) — never commit or push; user handles all git operations manually after testing
