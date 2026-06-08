@@ -13,19 +13,32 @@ interface AssessmentBody {
   sourceEpisodeId?: string;
 }
 
-function computeScore(urgency: string): number {
-  const scores: Record<string, number> = {
-    crisis: 10,
-    struggling: 7,
-    healing: 4,
-    exploring: 2,
+async function getAssessmentConfig() {
+  const record = await prisma.assessmentConfig.findFirst();
+  const config = record?.config as Record<string, unknown> | null;
+  const thresholds = config?.thresholds as { coachReferral?: number; resource?: number } | null;
+  const questions = (config?.questions as Array<{ type: string; options?: Array<{ value: string; score?: number }> }>) ?? [];
+  const urgencyQuestion = questions.find((q) => q.type === "urgency");
+
+  const scoreMap: Record<string, number> = { crisis: 10, struggling: 7, healing: 4, exploring: 2 };
+  for (const opt of urgencyQuestion?.options ?? []) {
+    if (opt.score !== undefined) scoreMap[opt.value] = opt.score;
+  }
+
+  return {
+    scoreMap,
+    coachReferralThreshold: thresholds?.coachReferral ?? 8,
+    resourceThreshold: thresholds?.resource ?? 5,
   };
-  return scores[urgency] ?? 5;
 }
 
-function computeResultType(score: number): string {
-  if (score >= 8) return "coach_referral";
-  if (score >= 5) return "resource";
+function computeScore(urgency: string, scoreMap: Record<string, number>): number {
+  return scoreMap[urgency] ?? 5;
+}
+
+function computeResultType(score: number, coachReferralThreshold: number, resourceThreshold: number): string {
+  if (score >= coachReferralThreshold) return "coach_referral";
+  if (score >= resourceThreshold) return "resource";
   return "nurture";
 }
 
@@ -164,8 +177,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const score = computeScore(urgency);
-  const resultType = computeResultType(score);
+  const assessmentCfg = await getAssessmentConfig();
+  const score = computeScore(urgency, assessmentCfg.scoreMap);
+  const resultType = computeResultType(score, assessmentCfg.coachReferralThreshold, assessmentCfg.resourceThreshold);
   const affiliateRouteId = await getAffiliateRoute(crisisCategory, urgency);
 
   const ip =

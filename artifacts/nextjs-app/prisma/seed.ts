@@ -121,6 +121,90 @@ async function main() {
     },
   });
   console.log("Seeded affiliate routes");
+
+  const existingConfig = await prisma.assessmentConfig.findFirst();
+  if (!existingConfig) {
+    await prisma.assessmentConfig.create({
+      data: {
+        config: {
+          questions: [
+            {
+              id: "category",
+              type: "category",
+              text: "What best describes what you're going through right now?",
+              subtext: "Choose the option that feels closest to your situation.",
+              options: [
+                { value: "grief", label: "Grief or loss", emoji: "💙" },
+                { value: "relationship", label: "Relationship or divorce", emoji: "💔" },
+                { value: "health", label: "Health or addiction", emoji: "🌿" },
+                { value: "financial", label: "Financial hardship", emoji: "💪" },
+                { value: "spiritual", label: "Spiritual awakening", emoji: "✨" },
+                { value: "career", label: "Career or purpose", emoji: "🎯" }
+              ],
+              storeAs: "crisisCategory"
+            },
+            {
+              id: "duration",
+              type: "options",
+              text: "How long have you been dealing with this?",
+              subtext: "This helps us understand where you are in your journey.",
+              options: [
+                { value: "just_started", label: "Just started — very recent" },
+                { value: "few_months", label: "A few months" },
+                { value: "over_a_year", label: "Over a year" },
+                { value: "long_term", label: "For as long as I can remember" }
+              ],
+              storeAs: "crisisDuration"
+            },
+            {
+              id: "urgency",
+              type: "urgency",
+              text: "Where are you right now?",
+              subtext: "Be honest — this helps us point you to the right support.",
+              options: [
+                { value: "crisis", label: "I'm in crisis and need help immediately", score: 10, color: "red" },
+                { value: "struggling", label: "I'm struggling and looking for direction", score: 7, color: "amber" },
+                { value: "healing", label: "I'm starting to heal but want support", score: 4, color: "blue" },
+                { value: "exploring", label: "I'm curious and exploring", score: 2, color: "green" }
+              ],
+              storeAs: "urgency"
+            },
+            {
+              id: "email",
+              type: "email",
+              text: "Where should we send your personalised resource guide?",
+              subtext: "We'll match you with episodes, resources, and support based on your answers. No spam, ever."
+            }
+          ],
+          thresholds: { coachReferral: 8, resource: 5 },
+          results: {
+            coach_referral: {
+              headline: "You deserve real support right now",
+              subtext: "Based on your answers, you're dealing with something significant and would benefit most from working with a specialist coach.",
+              ctaLabel: "Connect with a coach →",
+              ctaHref: "https://www.betterhelp.com",
+              secondaryLabel: "Browse episodes first"
+            },
+            resource: {
+              headline: "You're on the right path — here's what will help",
+              subtext: "You're at a stage where the right stories, tools, and resources can make a real difference.",
+              ctaLabel: "Browse matching episodes →",
+              ctaHref: "/episodes",
+              secondaryLabel: "Explore all resources"
+            },
+            nurture: {
+              headline: "Great — you're already thinking ahead",
+              subtext: "You're in exploration mode, which is a great place to be.",
+              ctaLabel: "Start exploring episodes →",
+              ctaHref: "/episodes",
+              secondaryLabel: "Browse all episodes"
+            }
+          }
+        }
+      }
+    });
+    console.log("Seeded assessment config");
+  }
 }
 
 main()

@@ -26,6 +26,9 @@ NEXTAUTH_SECRET = "lls-production-secret-2024-xK9mP3qR7vN2"
 NEXT_PUBLIC_APP_URL = "https://limitlesslivingpodcast.com/"
 NEXTAUTH_URL = "https://limitlesslivingpodcast.com/api/auth"
 
+[userenv.development]
+DIRECT_URL = "postgresql://postgres:password@helium/heliumdb?sslmode=disable"
+
 [[ports]]
 localPort = 5000
 externalPort = 5000

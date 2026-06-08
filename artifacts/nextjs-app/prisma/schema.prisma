@@ -199,6 +199,12 @@ model PublishLog {
   triggeredBy User?   @relation(fields: [triggeredById], references: [id])
 }
 
+model AssessmentConfig {
+  id        String   @id @default(cuid())
+  config    Json
+  updatedAt DateTime @updatedAt
+}
+
 model AiContentLog {
   id          String   @id @default(cuid())
   episodeId   String?

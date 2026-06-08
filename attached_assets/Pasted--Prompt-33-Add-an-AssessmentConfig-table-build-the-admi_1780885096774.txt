@@ -1,0 +1,580 @@
+## Prompt 33
+
+Add an AssessmentConfig table, build the admin editor, and rewrite the assessment page to support a dynamic variable number of questions driven entirely by the database config.
+
+Step 1 — Add AssessmentConfig to the Prisma schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+model AiContentLog {
+
+Add this immediately before it:
+model AssessmentConfig {
+  id        String   @id @default(cuid())
+  config    Json
+  updatedAt DateTime @updatedAt
+}
+
+After saving run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 2 — Seed the default assessment config.
+
+File to edit: artifacts/nextjs-app/prisma/seed.ts
+
+Find this exact string:
+  console.log("Seeded affiliate routes");
+}
+
+Replace it with:
+  console.log("Seeded affiliate routes");
+
+  const existingConfig = await prisma.assessmentConfig.findFirst();
+  if (!existingConfig) {
+    await prisma.assessmentConfig.create({
+      data: {
+        config: {
+          questions: [
+            {
+              id: "category",
+              type: "category",
+              text: "What best describes what you're going through right now?",
+              subtext: "Choose the option that feels closest to your situation.",
+              options: [
+                { value: "grief", label: "Grief or loss", emoji: "💙" },
+                { value: "relationship", label: "Relationship or divorce", emoji: "💔" },
+                { value: "health", label: "Health or addiction", emoji: "🌿" },
+                { value: "financial", label: "Financial hardship", emoji: "💪" },
+                { value: "spiritual", label: "Spiritual awakening", emoji: "✨" },
+                { value: "career", label: "Career or purpose", emoji: "🎯" }
+              ],
+              storeAs: "crisisCategory"
+            },
+            {
+              id: "duration",
+              type: "options",
+              text: "How long have you been dealing with this?",
+              subtext: "This helps us understand where you are in your journey.",
+              options: [
+                { value: "just_started", label: "Just started — very recent" },
+                { value: "few_months", label: "A few months" },
+                { value: "over_a_year", label: "Over a year" },
+                { value: "long_term", label: "For as long as I can remember" }
+              ],
+              storeAs: "crisisDuration"
+            },
+            {
+              id: "urgency",
+              type: "urgency",
+              text: "Where are you right now?",
+              subtext: "Be honest — this helps us point you to the right support.",
+              options: [
+                { value: "crisis", label: "I'm in crisis and need help immediately", score: 10, color: "red" },
+                { value: "struggling", label: "I'm struggling and looking for direction", score: 7, color: "amber" },
+                { value: "healing", label: "I'm starting to heal but want support", score: 4, color: "blue" },
+                { value: "exploring", label: "I'm curious and exploring", score: 2, color: "green" }
+              ],
+              storeAs: "urgency"
+            },
+            {
+              id: "email",
+              type: "email",
+              text: "Where should we send your personalised resource guide?",
+              subtext: "We'll match you with episodes, resources, and support based on your answers. No spam, ever."
+            }
+          ],
+          thresholds: { coachReferral: 8, resource: 5 },
+          results: {
+            coach_referral: {
+              headline: "You deserve real support right now",
+              subtext: "Based on your answers, you're dealing with something significant and would benefit most from working with a specialist coach.",
+              ctaLabel: "Connect with a coach →",
+              ctaHref: "https://www.betterhelp.com",
+              secondaryLabel: "Browse episodes first"
+            },
+            resource: {
+              headline: "You're on the right path — here's what will help",
+              subtext: "You're at a stage where the right stories, tools, and resources can make a real difference.",
+              ctaLabel: "Browse matching episodes →",
+              ctaHref: "/episodes",
+              secondaryLabel: "Explore all resources"
+            },
+            nurture: {
+              headline: "Great — you're already thinking ahead",
+              subtext: "You're in exploration mode, which is a great place to be.",
+              ctaLabel: "Start exploring episodes →",
+              ctaHref: "/episodes",
+              secondaryLabel: "Browse all episodes"
+            }
+          }
+        }
+      }
+    });
+    console.log("Seeded assessment config");
+  }
+}
+
+Then run:
+pnpm --filter @workspace/nextjs-app run db:seed
+
+
+Step 3 — Create the public assessment config API route.
+
+Create a new file at artifacts/nextjs-app/app/api/assessment/config/route.ts with the following contents:
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  const record = await prisma.assessmentConfig.findFirst();
+  return NextResponse.json(record?.config ?? {});
+}
+
+
+Step 4 — Create the admin assessment config API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/assessment/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const config = await prisma.assessmentConfig.findFirst();
+  return NextResponse.json(config ?? { config: {} });
+}
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const existing = await prisma.assessmentConfig.findFirst();
+
+  if (existing) {
+    const updated = await prisma.assessmentConfig.update({
+      where: { id: existing.id },
+      data: { config: body.config },
+    });
+    return NextResponse.json(updated);
+  }
+
+  const created = await prisma.assessmentConfig.create({
+    data: { config: body.config },
+  });
+  return NextResponse.json(created);
+}
+
+
+Step 5 — Create the admin assessment page.
+
+Create a new file at artifacts/nextjs-app/app/admin/(protected)/assessment/page.tsx with the following contents:
+
+"use client";
+
+import { useEffect, useState } from "react";
+
+export default function AssessmentAdminPage() {
+  const [raw, setRaw] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  async function load() {
+    const res = await fetch("/api/admin/assessment");
+    const data = await res.json();
+    setRaw(JSON.stringify(data.config, null, 2));
+    setLoading(false);
+  }
+
+  function handleChange(value: string) {
+    setRaw(value);
+    try {
+      JSON.parse(value);
+      setJsonError(null);
+    } catch (e) {
+      setJsonError((e as Error).message);
+    }
+  }
+
+  async function handleSave() {
+    if (jsonError) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const config = JSON.parse(raw);
+      const res = await fetch("/api/admin/assessment", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config }),
+      });
+      if (res.ok) {
+        setMessage({ type: "success", text: "Assessment config saved successfully" });
+      } else {
+        setMessage({ type: "error", text: "Save failed" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Invalid JSON — check your edits" });
+    }
+    setSaving(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="max-w-4xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Assessment config</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Edit questions, options, scoring, and result content. Add questions by adding objects to the <code className="bg-gray-100 px-1 rounded text-xs">questions</code> array.
+          Supported types: <code className="bg-gray-100 px-1 rounded text-xs">category</code>, <code className="bg-gray-100 px-1 rounded text-xs">options</code>, <code className="bg-gray-100 px-1 rounded text-xs">urgency</code>, <code className="bg-gray-100 px-1 rounded text-xs">email</code>.
+        </p>
+      </div>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {message.text}
+        </div>
+      )}
+
+      {jsonError && (
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
+          JSON error: {jsonError}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-sm text-gray-500">Loading...</div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <textarea
+            value={raw}
+            onChange={(e) => handleChange(e.target.value)}
+            rows={50}
+            className={`w-full font-mono text-xs border rounded-lg p-4 focus:outline-none focus:ring-2 bg-gray-50 ${jsonError ? "border-red-300 focus:ring-red-500" : "border-gray-200 focus:ring-brand-purple"}`}
+            spellCheck={false}
+          />
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-gray-400">
+              The <strong>email</strong> question must always be last.
+              Questions are shown in array order.
+            </p>
+            <button
+              onClick={handleSave}
+              disabled={saving || !!jsonError}
+              className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+Step 6 — Rewrite the public assessment page with a dynamic question engine.
+
+File to edit: artifacts/nextjs-app/app/assessment/page.tsx
+
+Replace the entire contents with:
+
+"use client";
+
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+
+interface QuestionOption {
+  value: string;
+  label: string;
+  emoji?: string;
+  score?: number;
+  color?: string;
+}
+
+interface Question {
+  id: string;
+  type: "category" | "options" | "urgency" | "email";
+  text: string;
+  subtext?: string;
+  options?: QuestionOption[];
+  storeAs?: string;
+}
+
+interface AssessmentConfig {
+  questions?: Question[];
+}
+
+const COLOR_MAP: Record<string, { idle: string; selected: string }> = {
+  red:    { idle: "border-red-300 hover:border-red-500",    selected: "bg-red-50 border-red-500" },
+  amber:  { idle: "border-amber-300 hover:border-amber-500", selected: "bg-amber-50 border-amber-500" },
+  blue:   { idle: "border-blue-300 hover:border-blue-500",   selected: "bg-blue-50 border-blue-500" },
+  green:  { idle: "border-green-300 hover:border-green-500", selected: "bg-green-50 border-green-500" },
+  purple: { idle: "border-purple-300 hover:border-purple-500", selected: "bg-purple-50 border-purple-500" },
+};
+
+function AssessmentFunnel() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillCategory = searchParams.get("category") ?? "";
+
+  const [config, setConfig] = useState<AssessmentConfig>({});
+  const [step, setStep] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({
+    crisisCategory: prefillCategory,
+    crisisDuration: "",
+    urgency: "",
+    firstName: "",
+    email: "",
+  });
+
+  useEffect(() => {
+    fetch("/api/assessment/config")
+      .then((r) => r.json())
+      .then((cfg: AssessmentConfig) => {
+        setConfig(cfg);
+        if (prefillCategory && cfg.questions) {
+          const categoryIndex = cfg.questions.findIndex((q) => q.type === "category");
+          setStep(categoryIndex >= 0 ? categoryIndex + 1 : 0);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const questions = config.questions ?? [];
+  const totalSteps = questions.length;
+  const progress = totalSteps > 0 ? ((step + 1) / totalSteps) * 100 : 0;
+  const currentQuestion = questions[step];
+
+  function handleOptionSelect(question: Question, value: string) {
+    const key = question.storeAs ?? question.id;
+    setAnswers((a) => ({ ...a, [key]: value }));
+    if (step < totalSteps - 1) setStep((s) => s + 1);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    const res = await fetch("/api/assessment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(answers),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      router.push(`/assessment/result?type=${data.resultType}&category=${data.crisisCategory}&urgency=${data.urgency}`);
+    } else {
+      setSubmitting(false);
+      alert("Something went wrong. Please try again.");
+    }
+  }
+
+  if (!currentQuestion) {
+    return <div className="min-h-screen bg-white flex items-center justify-center"><div className="text-gray-400 text-sm">Loading...</div></div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="bg-brand-purple">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="text-white font-bold text-lg">
+            Limitless <span className="text-brand-gold">Living</span>
+          </Link>
+          <span className="text-gray-300 text-sm">Free assessment</span>
+        </div>
+      </div>
+
+      <div className="h-1 bg-gray-100">
+        <div className="h-1 bg-brand-gold transition-all duration-500" style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-2">
+          Question {step + 1} of {totalSteps}
+        </p>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">
+          {currentQuestion.text}
+        </h1>
+        {currentQuestion.subtext && (
+          <p className="text-gray-500 text-sm mb-8">{currentQuestion.subtext}</p>
+        )}
+
+        {currentQuestion.type === "category" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(currentQuestion.options ?? []).map((opt) => (
+              <button key={opt.value} onClick={() => handleOptionSelect(currentQuestion, opt.value)}
+                className="flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-brand-purple hover:bg-purple-50 text-left transition-all group">
+                {opt.emoji && <span className="text-2xl">{opt.emoji}</span>}
+                <span className="text-sm font-medium text-gray-800 group-hover:text-brand-purple">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {currentQuestion.type === "options" && (
+          <div className="space-y-3">
+            {(currentQuestion.options ?? []).map((opt) => (
+              <button key={opt.value} onClick={() => handleOptionSelect(currentQuestion, opt.value)}
+                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-brand-purple hover:bg-purple-50 text-left transition-all">
+                <span className="text-sm font-medium text-gray-800">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {currentQuestion.type === "urgency" && (
+          <div className="space-y-3">
+            {(currentQuestion.options ?? []).map((opt) => {
+              const colors = COLOR_MAP[opt.color ?? "purple"] ?? COLOR_MAP.purple;
+              const selected = answers[currentQuestion.storeAs ?? currentQuestion.id] === opt.value;
+              return (
+                <button key={opt.value} onClick={() => handleOptionSelect(currentQuestion, opt.value)}
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selected ? colors.selected : colors.idle}`}>
+                  <span className="text-sm font-medium text-gray-800">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {currentQuestion.type === "email" && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+              <input type="text" value={answers.firstName ?? ""}
+                onChange={(e) => setAnswers((a) => ({ ...a, firstName: e.target.value }))}
+                className="input" placeholder="Your first name" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email address <span className="text-red-400">*</span>
+              </label>
+              <input type="email" value={answers.email ?? ""} required
+                onChange={(e) => setAnswers((a) => ({ ...a, email: e.target.value }))}
+                className="input" placeholder="you@example.com" />
+            </div>
+            <button type="submit" disabled={submitting} className="btn-primary w-full text-center disabled:opacity-50">
+              {submitting ? "Finding your path..." : "Show me my results →"}
+            </button>
+            <p className="text-xs text-gray-400 text-center">
+              By continuing you agree to receive emails from the Limitless Living Show. Unsubscribe any time.
+            </p>
+          </form>
+        )}
+
+        {step > 0 && currentQuestion.type !== "email" && (
+          <button onClick={() => setStep((s) => s - 1)}
+            className="mt-6 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            ← Back
+          </button>
+        )}
+        {step > 0 && currentQuestion.type === "email" && (
+          <button onClick={() => setStep((s) => s - 1)}
+            className="mt-4 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            ← Back
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function AssessmentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center"><div className="text-gray-400 text-sm">Loading...</div></div>}>
+      <AssessmentFunnel />
+    </Suspense>
+  );
+}
+
+
+Step 7 — Update the assessment API to use database thresholds and dynamic scoring.
+
+File to edit: artifacts/nextjs-app/app/api/assessment/route.ts
+
+Find this exact string:
+function computeScore(urgency: string): number {
+  const scores: Record<string, number> = {
+    crisis: 10,
+    struggling: 7,
+    healing: 4,
+    exploring: 2,
+  };
+  return scores[urgency] ?? 5;
+}
+
+function computeResultType(score: number): string {
+  if (score >= 8) return "coach_referral";
+  if (score >= 5) return "resource";
+  return "nurture";
+}
+
+Replace it with:
+async function getAssessmentConfig() {
+  const record = await prisma.assessmentConfig.findFirst();
+  const config = record?.config as Record<string, unknown> | null;
+  const thresholds = config?.thresholds as { coachReferral?: number; resource?: number } | null;
+  const questions = (config?.questions as Array<{ type: string; options?: Array<{ value: string; score?: number }> }>) ?? [];
+  const urgencyQuestion = questions.find((q) => q.type === "urgency");
+
+  const scoreMap: Record<string, number> = { crisis: 10, struggling: 7, healing: 4, exploring: 2 };
+  for (const opt of urgencyQuestion?.options ?? []) {
+    if (opt.score !== undefined) scoreMap[opt.value] = opt.score;
+  }
+
+  return {
+    scoreMap,
+    coachReferralThreshold: thresholds?.coachReferral ?? 8,
+    resourceThreshold: thresholds?.resource ?? 5,
+  };
+}
+
+function computeScore(urgency: string, scoreMap: Record<string, number>): number {
+  return scoreMap[urgency] ?? 5;
+}
+
+function computeResultType(score: number, coachReferralThreshold: number, resourceThreshold: number): string {
+  if (score >= coachReferralThreshold) return "coach_referral";
+  if (score >= resourceThreshold) return "resource";
+  return "nurture";
+}
+
+Find this exact string:
+  const score = computeScore(urgency);
+  const resultType = computeResultType(score);
+
+Replace it with:
+  const assessmentCfg = await getAssessmentConfig();
+  const score = computeScore(urgency, assessmentCfg.scoreMap);
+  const resultType = computeResultType(score, assessmentCfg.coachReferralThreshold, assessmentCfg.resourceThreshold);
+
+
+Step 8 — Push to GitHub.
+
+Run in the shell:
+cd /home/runner/workspace && git add -A && git commit -m "Dynamic assessment engine with database config" && git push origin main
+
+
+Verification: Confirm that:
+1. AssessmentConfig table in schema and db:push completed
+2. Seed ran and printed "Seeded assessment config"
+3. All 4 API routes created
+4. Assessment page rewrites to dynamic engine
+5. TypeScript typecheck passes with zero errors
+6. GitHub push succeeded
+7. Railway auto-deploys
+8. /admin/assessment shows the JSON config editor
+9. /assessment works end to end with the dynamic questions
+10. Adding a new question object to the JSON in the admin and saving causes it to appear in the assessment immediately
