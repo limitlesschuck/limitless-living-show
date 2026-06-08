@@ -1,0 +1,420 @@
+## Prompt 37
+
+Add a SiteConfig table, a global site settings section to the admin dashboard, and update the episode card image display based on the setting.
+
+Step 1 — Add SiteConfig to the Prisma schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+model AssessmentConfig {
+
+Add this immediately before it:
+model SiteConfig {
+  id        String   @id @default(cuid())
+  config    Json
+  updatedAt DateTime @updatedAt
+}
+
+
+After saving run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 2 — Seed the default site config.
+
+File to edit: artifacts/nextjs-app/prisma/seed.ts
+
+Find this exact string:
+  const existingConfig = await prisma.assessmentConfig.findFirst();
+
+Add this immediately before it:
+  const existingSiteConfig = await prisma.siteConfig.findFirst();
+  if (!existingSiteConfig) {
+    await prisma.siteConfig.create({
+      data: {
+        config: {
+          episodeCardImage: "youtube_thumbnail",
+        },
+      },
+    });
+    console.log("Seeded site config");
+  }
+
+
+Then run:
+pnpm --filter @workspace/nextjs-app run db:seed
+
+
+Step 3 — Create the site config API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/site-config/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const record = await prisma.siteConfig.findFirst();
+  return NextResponse.json(record?.config ?? { episodeCardImage: "youtube_thumbnail" });
+}
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const existing = await prisma.siteConfig.findFirst();
+
+  if (existing) {
+    const updated = await prisma.siteConfig.update({
+      where: { id: existing.id },
+      data: { config: { ...(existing.config as object), ...body } },
+    });
+    return NextResponse.json(updated.config);
+  }
+
+  const created = await prisma.siteConfig.create({
+    data: { config: body },
+  });
+  return NextResponse.json(created.config);
+}
+
+
+Step 4 — Create a public site config API route for the frontend.
+
+Create a new file at artifacts/nextjs-app/app/api/site-config/route.ts with the following contents:
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const record = await prisma.siteConfig.findFirst();
+  return NextResponse.json(record?.config ?? { episodeCardImage: "youtube_thumbnail" });
+}
+
+
+Step 5 — Add a Settings section to the admin dashboard.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/page.tsx
+
+Add "use client"; as the very first line of the file.
+
+Then add these imports after the existing imports:
+import { useEffect, useState } from "react";
+
+Then find this exact string:
+export default async function AdminDashboardPage() {
+  const session = await getServerSession(authOptions);
+  const stats = await getStats();
+
+Replace it with:
+function SiteSettings() {
+  const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/site-config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
+      });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage(null);
+    const res = await fetch("/api/admin/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ episodeCardImage }),
+    });
+    if (res.ok) {
+      setMessage({ type: "success", text: "Settings saved" });
+    } else {
+      setMessage({ type: "error", text: "Save failed" });
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 mt-8">
+      <h2 className="text-sm font-semibold text-gray-900 mb-4">Site settings</h2>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-2">
+            Episode card image
+          </label>
+          <p className="text-xs text-gray-500 mb-3">
+            Choose which image to display on episode cards across the site.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setEpisodeCardImage("youtube_thumbnail")}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${episodeCardImage === "youtube_thumbnail" ? "border-brand-purple bg-purple-50 text-brand-purple" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+            >
+              YouTube thumbnail
+              <p className="text-xs font-normal text-gray-500 mt-0.5">16:9 widescreen, fills the card</p>
+            </button>
+            <button
+              onClick={() => setEpisodeCardImage("cover_art")}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${episodeCardImage === "cover_art" ? "border-brand-purple bg-purple-50 text-brand-purple" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+            >
+              Episode cover art
+              <p className="text-xs font-normal text-gray-500 mt-0.5">Square artwork, shown in full</p>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving..." : "Save settings"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  const [stats, setStats] = useState({ episodes: 0, leads: 0, coaches: 0, pendingEpisodes: 0 });
+
+  useEffect(() => {
+    fetch("/api/admin/stats")
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+
+
+Step 6 — Create the admin stats API route since we converted the dashboard to a client component.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/stats/route.ts with the following contents:
+
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const [episodes, leads, coaches, pendingEpisodes] = await Promise.all([
+    prisma.episode.count(),
+    prisma.lead.count(),
+    prisma.coach.count(),
+    prisma.episode.count({ where: { publishStatus: "approved" } }),
+  ]);
+
+  return NextResponse.json({ episodes, leads, coaches, pendingEpisodes });
+}
+
+
+Step 7 — Update the dashboard to remove the server-side session and stats fetching since we converted to client component.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/page.tsx
+
+Find this exact string:
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+
+async function getStats() {
+  const [episodes, leads, coaches, pendingEpisodes] = await Promise.all([
+    prisma.episode.count(),
+    prisma.lead.count(),
+    prisma.coach.count(),
+    prisma.episode.count({ where: { publishStatus: "approved" } }),
+  ]);
+  return { episodes, leads, coaches, pendingEpisodes };
+}
+
+Replace it with:
+import Link from "next/link";
+
+
+Find this exact string:
+  return (
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Welcome back, {session?.user?.name ?? session?.user?.email}
+        </p>
+      </div>
+
+Replace it with:
+  return (
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Welcome back
+        </p>
+      </div>
+
+
+Step 8 — Add the SiteSettings component to the bottom of the dashboard return.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/page.tsx
+
+Find this exact string:
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">
+          Quick actions
+        </h2>
+
+Add the SiteSettings component at the very end of the JSX, just before the final closing </div> of the return statement. Find this exact string:
+    </div>
+  );
+}
+
+function StatCard({
+
+Replace it with:
+      <SiteSettings />
+    </div>
+  );
+}
+
+function StatCard({
+
+
+Step 9 — Update the homepage episode cards to respect the site config image setting.
+
+File to edit: artifacts/nextjs-app/app/page.tsx
+
+Add this function before the getHomeData function:
+
+async function getSiteConfig(): Promise<{ episodeCardImage: "youtube_thumbnail" | "cover_art" }> {
+  try {
+    const record = await prisma.siteConfig.findFirst();
+    const config = record?.config as { episodeCardImage?: string } | null;
+    return {
+      episodeCardImage: (config?.episodeCardImage as "youtube_thumbnail" | "cover_art") ?? "youtube_thumbnail",
+    };
+  } catch {
+    return { episodeCardImage: "youtube_thumbnail" };
+  }
+}
+
+Then find this exact string:
+export default async function HomePage() {
+  const { latest, featured } = await getHomeData();
+
+Replace it with:
+export default async function HomePage() {
+  const { latest, featured } = await getHomeData();
+  const siteConfig = await getSiteConfig();
+
+Then update the EpisodeCard interface to accept an imageMode prop.
+
+Find this exact string:
+  large?: boolean;
+
+Replace it with:
+  large?: boolean;
+  imageMode?: "youtube_thumbnail" | "cover_art";
+
+Then find this exact string:
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const episodeHref = episode.slug
+    ? `/episodes/${episode.slug}`
+    : `/episodes/${episode.id}`;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+  const displayImage = large
+    ? episode.coverArtUrl || episode.thumbnailUrl
+    : episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl;
+
+Replace it with:
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const episodeHref = episode.slug
+    ? `/episodes/${episode.slug}`
+    : `/episodes/${episode.id}`;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const duration = formatDuration(episode.durationSeconds);
+  const displayImage = large
+    ? episode.coverArtUrl || episode.thumbnailUrl
+    : imageMode === "cover_art"
+    ? episode.coverArtUrl || episode.youtubeThumbnailUrl || episode.thumbnailUrl
+    : episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl;
+
+  const imageClass = imageMode === "cover_art"
+    ? "w-full h-full object-contain bg-brand-purple"
+    : "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300";
+
+Now update the small card image render to use imageClass. Find this exact string (small card image):
+        {displayImage ? (
+          <img
+            src={displayImage}
+            alt={title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+            <span className="text-brand-gold text-2xl font-bold">LLS</span>
+          </div>
+        )}
+
+Replace it with:
+        {displayImage ? (
+          <img
+            src={displayImage}
+            alt={title}
+            className={imageClass}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-brand-purple">
+            <span className="text-brand-gold text-2xl font-bold">LLS</span>
+          </div>
+        )}
+
+Now pass imageMode to all small EpisodeCard renders. Find this exact string:
+              {latest.slice(1, 7).map((ep) => (
+                <EpisodeCard key={ep.id} episode={ep} />
+              ))}
+
+Replace it with:
+              {latest.slice(1, 7).map((ep) => (
+                <EpisodeCard key={ep.id} episode={ep} imageMode={siteConfig.episodeCardImage} />
+              ))}
+
+
+Verification: Confirm that:
+1. SiteConfig table added to schema and db:push completed
+2. Seed ran and printed "Seeded site config"
+3. app/api/admin/site-config/route.ts created
+4. app/api/site-config/route.ts created
+5. app/api/admin/stats/route.ts created
+6. Admin dashboard has Site settings section with two buttons — YouTube thumbnail and Episode cover art
+7. Saving the setting updates the database
+8. Homepage episode grid uses the saved setting to choose image style
+9. When cover art is selected, images use object-contain with purple background (no cropping)
+10. TypeScript typecheck passes with zero errors

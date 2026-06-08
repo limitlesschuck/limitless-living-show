@@ -29,6 +29,18 @@ const PLATFORMS = [
   },
 ];
 
+async function getSiteConfig(): Promise<{ episodeCardImage: "youtube_thumbnail" | "cover_art" }> {
+  try {
+    const record = await prisma.siteConfig.findFirst();
+    const config = record?.config as { episodeCardImage?: string } | null;
+    return {
+      episodeCardImage: (config?.episodeCardImage as "youtube_thumbnail" | "cover_art") ?? "youtube_thumbnail",
+    };
+  } catch {
+    return { episodeCardImage: "youtube_thumbnail" };
+  }
+}
+
 async function getHomeData() {
   const [latest, featured] = await Promise.all([
     prisma.episode.findMany({
@@ -87,6 +99,7 @@ function formatDuration(seconds: number | null) {
 function EpisodeCard({
   episode,
   large = false,
+  imageMode = "youtube_thumbnail",
 }: {
   episode: {
     id: string;
@@ -104,6 +117,7 @@ function EpisodeCard({
     captivatePublishedAt: Date | null | string;
   };
   large?: boolean;
+  imageMode?: "youtube_thumbnail" | "cover_art";
 }) {
   const title = episode.titleYoutube ?? episode.titleOriginal;
   const episodeHref = episode.slug
@@ -115,7 +129,13 @@ function EpisodeCard({
   const duration = formatDuration(episode.durationSeconds);
   const displayImage = large
     ? episode.coverArtUrl || episode.thumbnailUrl
+    : imageMode === "cover_art"
+    ? episode.coverArtUrl || episode.youtubeThumbnailUrl || episode.thumbnailUrl
     : episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl;
+
+  const imageClass = imageMode === "cover_art"
+    ? "w-full h-full object-contain bg-brand-purple"
+    : "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300";
 
   if (large) {
     return (
@@ -172,7 +192,7 @@ function EpisodeCard({
           <img
             src={displayImage}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className={imageClass}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-brand-purple">
@@ -203,6 +223,7 @@ function EpisodeCard({
 
 export default async function HomePage() {
   const { latest, featured } = await getHomeData();
+  const siteConfig = await getSiteConfig();
   const heroEpisode = featured[0] ?? latest[0] ?? null;
 
   return (
@@ -292,7 +313,7 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {latest.slice(1, 7).map((ep) => (
-                <EpisodeCard key={ep.id} episode={ep} />
+                <EpisodeCard key={ep.id} episode={ep} imageMode={siteConfig.episodeCardImage} />
               ))}
             </div>
             <div className="text-center mt-8">

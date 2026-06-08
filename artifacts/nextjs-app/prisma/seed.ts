@@ -122,6 +122,18 @@ async function main() {
   });
   console.log("Seeded affiliate routes");
 
+  const existingSiteConfig = await prisma.siteConfig.findFirst();
+  if (!existingSiteConfig) {
+    await prisma.siteConfig.create({
+      data: {
+        config: {
+          episodeCardImage: "youtube_thumbnail",
+        },
+      },
+    });
+    console.log("Seeded site config");
+  }
+
   const existingConfig = await prisma.assessmentConfig.findFirst();
   if (!existingConfig) {
     await prisma.assessmentConfig.create({
