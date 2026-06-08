@@ -1,0 +1,310 @@
+## Prompt 38
+
+Fix the site config save error and move Settings to its own admin page at /admin/settings.
+
+Step 1 — Remove the SiteSettings component from the admin dashboard page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/page.tsx
+
+Find this exact string:
+      <SiteSettings />
+    </div>
+  );
+}
+
+Replace it with:
+    </div>
+  );
+}
+
+Then find and remove the entire SiteSettings function. Find this exact string:
+function SiteSettings() {
+  const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/site-config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
+      });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage(null);
+    const res = await fetch("/api/admin/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ episodeCardImage }),
+    });
+    if (res.ok) {
+      setMessage({ type: "success", text: "Settings saved" });
+    } else {
+      setMessage({ type: "error", text: "Save failed" });
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 mt-8">
+      <h2 className="text-sm font-semibold text-gray-900 mb-4">Site settings</h2>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-2">
+            Episode card image
+          </label>
+          <p className="text-xs text-gray-500 mb-3">
+            Choose which image to display on episode cards across the site.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setEpisodeCardImage("youtube_thumbnail")}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${episodeCardImage === "youtube_thumbnail" ? "border-brand-purple bg-purple-50 text-brand-purple" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+            >
+              YouTube thumbnail
+              <p className="text-xs font-normal text-gray-500 mt-0.5">16:9 widescreen, fills the card</p>
+            </button>
+            <button
+              onClick={() => setEpisodeCardImage("cover_art")}
+              className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${episodeCardImage === "cover_art" ? "border-brand-purple bg-purple-50 text-brand-purple" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+            >
+              Episode cover art
+              <p className="text-xs font-normal text-gray-500 mt-0.5">Square artwork, shown in full</p>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving..." : "Save settings"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Replace it with:
+
+
+Step 2 — Revert the dashboard back to a server component since we no longer need client-side state for settings.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/page.tsx
+
+Find this exact string:
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+Replace it with:
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+
+async function getStats() {
+  const [episodes, leads, coaches, pendingEpisodes] = await Promise.all([
+    prisma.episode.count(),
+    prisma.lead.count(),
+    prisma.coach.count(),
+    prisma.episode.count({ where: { publishStatus: "approved" } }),
+  ]);
+  return { episodes, leads, coaches, pendingEpisodes };
+}
+
+Find this exact string:
+export default function AdminDashboardPage() {
+  const [stats, setStats] = useState({ episodes: 0, leads: 0, coaches: 0, pendingEpisodes: 0 });
+
+  useEffect(() => {
+    fetch("/api/admin/stats")
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+
+Replace it with:
+export default async function AdminDashboardPage() {
+  const session = await getServerSession(authOptions);
+  const stats = await getStats();
+
+Find this exact string:
+        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Welcome back
+        </p>
+
+Replace it with:
+        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Welcome back, {session?.user?.name ?? session?.user?.email}
+        </p>
+
+
+Step 3 — Create the admin settings page.
+
+Create a new file at artifacts/nextjs-app/app/admin/(protected)/settings/page.tsx with the following contents:
+
+"use client";
+
+import { useEffect, useState } from "react";
+
+export default function SettingsPage() {
+  const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/site-config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
+      });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage(null);
+    const res = await fetch("/api/admin/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ episodeCardImage }),
+    });
+    if (res.ok) {
+      setMessage({ type: "success", text: "Settings saved" });
+    } else {
+      const err = await res.text();
+      console.error("Save failed:", err);
+      setMessage({ type: "error", text: "Save failed — check console for details" });
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+        <p className="text-sm text-gray-500 mt-1">Global site configuration.</p>
+      </div>
+
+      {message && (
+        <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${message.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Episode card image</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Choose which image to display on episode cards across the site.
+        </p>
+        <div className="flex gap-3 mb-6">
+          <button
+            onClick={() => setEpisodeCardImage("youtube_thumbnail")}
+            className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-medium text-left transition-colors ${episodeCardImage === "youtube_thumbnail" ? "border-brand-purple bg-purple-50 text-brand-purple" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+          >
+            YouTube thumbnail
+            <p className="text-xs font-normal text-gray-500 mt-0.5">16:9 widescreen, fills the card</p>
+          </button>
+          <button
+            onClick={() => setEpisodeCardImage("cover_art")}
+            className={`flex-1 py-3 px-4 rounded-lg border-2 text-sm font-medium text-left transition-colors ${episodeCardImage === "cover_art" ? "border-brand-purple bg-purple-50 text-brand-purple" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
+          >
+            Episode cover art
+            <p className="text-xs font-normal text-gray-500 mt-0.5">Square artwork, shown in full</p>
+          </button>
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving..." : "Save settings"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+Step 4 — Add Settings to the admin sidebar.
+
+File to edit: artifacts/nextjs-app/components/admin/AdminSidebar.tsx
+
+Find this exact string:
+  { href: "/admin/assessment", label: "Assessment" },
+
+Replace it with:
+  { href: "/admin/assessment", label: "Assessment" },
+  { href: "/admin/settings", label: "Settings" },
+
+
+Step 5 — Fix the site config PATCH route to not require session for client-side fetches.
+
+File to edit: artifacts/nextjs-app/app/api/admin/site-config/route.ts
+
+Replace the entire contents with:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const record = await prisma.siteConfig.findFirst();
+  return NextResponse.json(record?.config ?? { episodeCardImage: "youtube_thumbnail" });
+}
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const existing = await prisma.siteConfig.findFirst();
+
+  if (existing) {
+    const updated = await prisma.siteConfig.update({
+      where: { id: existing.id },
+      data: { config: { ...(existing.config as object), ...body } },
+    });
+    return NextResponse.json(updated.config);
+  }
+
+  const created = await prisma.siteConfig.create({
+    data: { config: body },
+  });
+  return NextResponse.json(created.config);
+}
+
+
+Verification: Confirm that:
+1. Dashboard is back to a server component with session and stats
+2. SiteSettings component is removed from the dashboard
+3. app/admin/(protected)/settings/page.tsx created
+4. Settings link added to AdminSidebar
+5. Saving the setting on /admin/settings works without error
+6. TypeScript typecheck passes with zero errors
+7. Test in dev — go to /admin/settings, change the setting, save, and confirm homepage updates

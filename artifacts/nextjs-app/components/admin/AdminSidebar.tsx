@@ -12,6 +12,7 @@ const navItems = [
   { label: "Coaches", href: "/admin/coaches" },
   { label: "Affiliates", href: "/admin/affiliates" },
   { label: "AI Content", href: "/admin/ai-content" },
+  { label: "Settings", href: "/admin/settings" },
 ];
 
 interface Props {
