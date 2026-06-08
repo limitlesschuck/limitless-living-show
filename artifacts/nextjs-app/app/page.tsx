@@ -130,7 +130,7 @@ function EpisodeCard({
   const displayImage = large
     ? episode.coverArtUrl || episode.thumbnailUrl
     : imageMode === "cover_art"
-    ? episode.coverArtUrl || episode.youtubeThumbnailUrl || episode.thumbnailUrl
+    ? episode.coverArtUrl || episode.thumbnailUrl
     : episode.youtubeThumbnailUrl || episode.coverArtUrl || episode.thumbnailUrl;
 
   const imageClass = imageMode === "cover_art"
