@@ -34,7 +34,7 @@ async function getHomeData() {
     prisma.episode.findMany({
       where: { publishStatus: "published" },
       orderBy: { captivatePublishedAt: "desc" },
-      take: 6,
+      take: 7,
       select: {
         id: true,
         titleOriginal: true,
@@ -291,9 +291,17 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {latest.slice(1).map((ep) => (
+              {latest.slice(1, 7).map((ep) => (
                 <EpisodeCard key={ep.id} episode={ep} />
               ))}
+            </div>
+            <div className="text-center mt-8">
+              <Link
+                href="/episodes"
+                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-brand-purple border-2 border-brand-purple rounded-full hover:bg-brand-purple hover:text-white transition-colors"
+              >
+                View all episodes →
+              </Link>
             </div>
           </section>
         )}
