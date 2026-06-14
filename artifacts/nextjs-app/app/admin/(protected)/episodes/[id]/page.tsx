@@ -58,6 +58,7 @@ export default function EpisodeDetailPage() {
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [generatingGuide, setGeneratingGuide] = useState(false);
   const [guideStatus, setGuideStatus] = useState("");
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -148,6 +149,23 @@ export default function EpisodeDetailPage() {
       setMessage({ type: "error", text: "Save failed" });
     }
     setSaving(false);
+  }
+
+  async function handleGeneratePdf() {
+    setGeneratingPdf(true);
+    setMessage(null);
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-pdf`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.pdfUrl) {
+      setForm((f) => ({ ...f, guidePdfUrl: data.pdfUrl }));
+      setMessage({ type: "success", text: "PDF generated and stored — ready for download" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "PDF generation failed" });
+    }
+    setGeneratingPdf(false);
   }
 
   async function handleGenerateGuide() {
@@ -476,7 +494,7 @@ export default function EpisodeDetailPage() {
           {(form.guideBio || form.guideFrameworks || form.guideTakeaways || form.guideQuotes || form.guideActionItems) && (
             <Section title="Episode guide content">
               <p className="text-xs text-gray-500 -mt-2 mb-4">
-                Generated guide content. Edit as needed then save. The PDF will be generated when a visitor requests it.
+                Review and edit the guide content, then click Save changes. Once saved, click Generate PDF in the sidebar to create the downloadable PDF.
               </p>
               <Field label="Guest bio">
                 <textarea
@@ -845,6 +863,23 @@ export default function EpisodeDetailPage() {
             >
               {generatingGuide ? "Generating..." : "Generate episode guide"}
             </button>
+            <button
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf || !form.guideBio}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingPdf ? "Generating PDF..." : "Generate PDF"}
+            </button>
+            {form.guidePdfUrl && (
+              <a
+                href={form.guidePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full block text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                View PDF →
+              </a>
+            )}
             {generatingGuide && guideStatus && (
               <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
                 <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />

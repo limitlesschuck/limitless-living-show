@@ -1,0 +1,467 @@
+## Prompt 46
+
+Build PDF generation using @react-pdf/renderer, store to Cloudflare R2, and add a Generate PDF button to the episode edit page.
+
+Step 1 — Create the PDF template component.
+
+Create a new file at artifacts/nextjs-app/lib/episode-guide-pdf.tsx with the following contents:
+
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Font,
+} from "@react-pdf/renderer";
+
+const styles = StyleSheet.create({
+  page: {
+    backgroundColor: "#FFFFFF",
+    paddingTop: 48,
+    paddingBottom: 48,
+    paddingHorizontal: 48,
+    fontFamily: "Helvetica",
+  },
+  header: {
+    backgroundColor: "#2D1B69",
+    marginHorizontal: -48,
+    marginTop: -48,
+    paddingHorizontal: 48,
+    paddingVertical: 28,
+    marginBottom: 32,
+  },
+  showName: {
+    color: "#F0A500",
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    textTransform: "uppercase",
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    color: "#C4B5FD",
+    fontSize: 11,
+  },
+  guideTitle: {
+    fontSize: 22,
+    fontFamily: "Helvetica-Bold",
+    color: "#1F1235",
+    marginBottom: 4,
+  },
+  guideDivider: {
+    height: 3,
+    backgroundColor: "#F0A500",
+    marginBottom: 28,
+    width: 60,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontFamily: "Helvetica-Bold",
+    color: "#2D1B69",
+    marginBottom: 10,
+    marginTop: 24,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  bodyText: {
+    fontSize: 10,
+    color: "#374151",
+    lineHeight: 1.7,
+    marginBottom: 8,
+  },
+  bulletItem: {
+    fontSize: 10,
+    color: "#374151",
+    lineHeight: 1.7,
+    marginBottom: 4,
+    paddingLeft: 12,
+  },
+  quoteItem: {
+    fontSize: 10,
+    color: "#4B5563",
+    lineHeight: 1.7,
+    marginBottom: 8,
+    fontFamily: "Helvetica-Oblique",
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: "#F0A500",
+  },
+  actionItem: {
+    fontSize: 10,
+    color: "#374151",
+    lineHeight: 1.6,
+    marginBottom: 6,
+    paddingLeft: 16,
+  },
+  checkBox: {
+    width: 10,
+    height: 10,
+    borderWidth: 1,
+    borderColor: "#9CA3AF",
+    marginRight: 8,
+    marginTop: 1,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  footer: {
+    marginTop: 36,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  footerText: {
+    fontSize: 9,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  ctaBox: {
+    backgroundColor: "#F5F3FF",
+    borderWidth: 1,
+    borderColor: "#DDD6FE",
+    borderRadius: 6,
+    padding: 16,
+    marginTop: 28,
+    marginBottom: 8,
+  },
+  ctaTitle: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    color: "#2D1B69",
+    marginBottom: 4,
+  },
+  ctaText: {
+    fontSize: 10,
+    color: "#4C1D95",
+    lineHeight: 1.6,
+  },
+  ctaUrl: {
+    fontSize: 10,
+    color: "#7C3AED",
+    marginTop: 6,
+    fontFamily: "Helvetica-Bold",
+  },
+});
+
+function parseLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+interface EpisodeGuidePDFProps {
+  showName: string;
+  episodeTitle: string;
+  episodeNumber: number | null;
+  guestName: string | null;
+  guideBio: string;
+  guideFrameworks: string;
+  guideTakeaways: string;
+  guideQuotes: string;
+  guideActionItems: string;
+  assessmentUrl: string;
+}
+
+export function EpisodeGuidePDF({
+  showName,
+  episodeTitle,
+  episodeNumber,
+  guestName,
+  guideBio,
+  guideFrameworks,
+  guideTakeaways,
+  guideQuotes,
+  guideActionItems,
+  assessmentUrl,
+}: EpisodeGuidePDFProps) {
+  const guideTitle = guestName
+    ? `${guestName} Episode Guide`
+    : `Episode Guide`;
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.showName}>{showName}</Text>
+          {episodeNumber && (
+            <Text style={styles.headerSubtitle}>Episode {episodeNumber}</Text>
+          )}
+          <Text style={styles.headerTitle}>{episodeTitle}</Text>
+        </View>
+
+        {/* Guide title */}
+        <Text style={styles.guideTitle}>{guideTitle}</Text>
+        <View style={styles.guideDivider} />
+
+        {/* About the guest */}
+        {guideBio && (
+          <View>
+            <Text style={styles.sectionTitle}>About {guestName ?? "the guest"}</Text>
+            {parseLines(guideBio).map((line, i) => (
+              <Text key={i} style={styles.bodyText}>{line}</Text>
+            ))}
+          </View>
+        )}
+
+        {/* Key frameworks */}
+        {guideFrameworks && (
+          <View>
+            <Text style={styles.sectionTitle}>Key Frameworks & Strategies</Text>
+            {parseLines(guideFrameworks).map((line, i) => (
+              <Text key={i} style={line.startsWith("-") ? styles.bulletItem : styles.bodyText}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        )}
+
+        {/* Key takeaways */}
+        {guideTakeaways && (
+          <View>
+            <Text style={styles.sectionTitle}>Key Takeaways</Text>
+            {parseLines(guideTakeaways).map((line, i) => (
+              <Text key={i} style={styles.bodyText}>{line}</Text>
+            ))}
+          </View>
+        )}
+
+        {/* Memorable quotes */}
+        {guideQuotes && (
+          <View>
+            <Text style={styles.sectionTitle}>Memorable Quotes</Text>
+            {parseLines(guideQuotes).map((line, i) => (
+              <Text key={i} style={styles.quoteItem}>{line}</Text>
+            ))}
+          </View>
+        )}
+
+        {/* Action items */}
+        {guideActionItems && (
+          <View>
+            <Text style={styles.sectionTitle}>Action Items</Text>
+            {parseLines(guideActionItems).map((line, i) => (
+              <View key={i} style={styles.actionRow}>
+                <View style={styles.checkBox} />
+                <Text style={styles.actionItem}>
+                  {line.startsWith("-") ? line.slice(1).trim() : line}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* CTA box */}
+        <View style={styles.ctaBox}>
+          <Text style={styles.ctaTitle}>Not sure where to start?</Text>
+          <Text style={styles.ctaText}>
+            Take our free assessment and we'll match you with the right episodes,
+            resources, and support based on exactly what you're going through.
+          </Text>
+          <Text style={styles.ctaUrl}>{assessmentUrl}</Text>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            © {new Date().getFullYear()} {showName} — All rights reserved
+          </Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+
+Step 2 — Create the PDF generation API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/generate-pdf/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { renderToBuffer } from "@react-pdf/renderer";
+import { EpisodeGuidePDF } from "@/lib/episode-guide-pdf";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import React from "react";
+
+const R2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? "",
+    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "",
+  },
+});
+
+const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? "limitless-living-media";
+const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!episode.guideBio && !episode.guideFrameworks) {
+    return NextResponse.json(
+      { error: "Generate episode guide content first before creating the PDF" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const pdfBuffer = await renderToBuffer(
+      React.createElement(EpisodeGuidePDF, {
+        showName: "Limitless Living Show",
+        episodeTitle: episode.titleYoutube ?? episode.titleOriginal,
+        episodeNumber: episode.episodeNumber,
+        guestName: episode.guestName,
+        guideBio: episode.guideBio ?? "",
+        guideFrameworks: episode.guideFrameworks ?? "",
+        guideTakeaways: episode.guideTakeaways ?? "",
+        guideQuotes: episode.guideQuotes ?? "",
+        guideActionItems: episode.guideActionItems ?? "",
+        assessmentUrl: `${APP_URL}/assessment`,
+      })
+    );
+
+    const slug = episode.slug ?? episode.id;
+    const filename = `episode-guides/${slug}-guide.pdf`;
+
+    await R2.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: filename,
+        Body: pdfBuffer,
+        ContentType: "application/pdf",
+      })
+    );
+
+    const pdfUrl = `${PUBLIC_URL}/${filename}`;
+
+    await prisma.episode.update({
+      where: { id: episode.id },
+      data: { guidePdfUrl: pdfUrl },
+    });
+
+    return NextResponse.json({ pdfUrl, success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "PDF generation failed";
+    console.error("PDF generation error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+
+Step 3 — Add Generate PDF button to the episode edit page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [generatingGuide, setGeneratingGuide] = useState(false);
+  const [guideStatus, setGuideStatus] = useState("");
+
+Replace it with:
+  const [generatingGuide, setGeneratingGuide] = useState(false);
+  const [guideStatus, setGuideStatus] = useState("");
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+
+Find this exact string:
+  async function handleGenerateGuide() {
+
+Add this function immediately before it:
+  async function handleGeneratePdf() {
+    setGeneratingPdf(true);
+    setMessage(null);
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-pdf`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.pdfUrl) {
+      setForm((f) => ({ ...f, guidePdfUrl: data.pdfUrl }));
+      setMessage({ type: "success", text: "PDF generated and stored — ready for download" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "PDF generation failed" });
+    }
+    setGeneratingPdf(false);
+  }
+
+Find this exact string:
+            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating..." : "Generate episode guide"}
+            </button>
+
+Replace it with:
+            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating..." : "Generate episode guide"}
+            </button>
+            <button
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf || !form.guideBio}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingPdf ? "Generating PDF..." : "Generate PDF"}
+            </button>
+            {form.guidePdfUrl && (
+              
+                href={form.guidePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full block text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                View PDF →
+              </a>
+            )}
+
+Also fix the incorrect message in the guide section. Find this exact string:
+              <p className="text-xs text-gray-500 -mt-2 mb-4">
+                Generated guide content. Edit as needed then save. The PDF will be generated when a visitor requests it.
+              </p>
+
+Replace it with:
+              <p className="text-xs text-gray-500 -mt-2 mb-4">
+                Review and edit the guide content, then click Save changes. Once saved, click Generate PDF in the sidebar to create the downloadable PDF.
+              </p>
+
+
+Verification: Confirm that:
+1. lib/episode-guide-pdf.tsx created with EpisodeGuidePDF component
+2. app/api/admin/episodes/[id]/generate-pdf/route.ts created
+3. Generate PDF button appears in the sidebar (disabled until guide content exists)
+4. View PDF link appears in sidebar once PDF is generated
+5. TypeScript typecheck passes with zero errors
+6. Test in dev — click Generate PDF on an episode with guide content and confirm a PDF URL is returned and stored
