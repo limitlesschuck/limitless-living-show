@@ -57,6 +57,7 @@ export default function EpisodeDetailPage() {
   const [uploadingArt, setUploadingArt] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
   const [generatingGuide, setGeneratingGuide] = useState(false);
+  const [guideStatus, setGuideStatus] = useState("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -152,10 +153,32 @@ export default function EpisodeDetailPage() {
   async function handleGenerateGuide() {
     setGeneratingGuide(true);
     setMessage(null);
+
+    const steps = [
+      "Reading transcript...",
+      "Researching guest background...",
+      "Extracting key frameworks...",
+      "Identifying top takeaways...",
+      "Pulling memorable quotes...",
+      "Building action items...",
+      "Finalising guide content...",
+    ];
+    let stepIndex = 0;
+    setGuideStatus(steps[0]);
+
+    const interval = setInterval(() => {
+      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+      setGuideStatus(steps[stepIndex]);
+    }, 4000);
+
     const res = await fetch(
       `/api/admin/episodes/${id}/generate-guide`,
       { method: "POST" }
     );
+
+    clearInterval(interval);
+    setGuideStatus("");
+
     const data = await res.json();
     if (res.ok && data.generated) {
       setForm((f) => ({
@@ -754,8 +777,14 @@ export default function EpisodeDetailPage() {
               disabled={generatingGuide}
               className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              {generatingGuide ? "Generating guide..." : "Generate episode guide"}
+              {generatingGuide ? "Generating..." : "Generate episode guide"}
             </button>
+            {generatingGuide && guideStatus && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
+                <p className="text-xs text-brand-purple font-medium">{guideStatus}</p>
+              </div>
+            )}
 
             <button
               onClick={handleResync}

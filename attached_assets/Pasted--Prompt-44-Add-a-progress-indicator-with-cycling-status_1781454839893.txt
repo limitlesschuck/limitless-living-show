@@ -1,0 +1,117 @@
+## Prompt 44
+
+Add a progress indicator with cycling status messages to the Generate episode guide button.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [generatingGuide, setGeneratingGuide] = useState(false);
+
+Replace it with:
+  const [generatingGuide, setGeneratingGuide] = useState(false);
+  const [guideStatus, setGuideStatus] = useState("");
+
+Find this exact string:
+  async function handleGenerateGuide() {
+    setGeneratingGuide(true);
+    setMessage(null);
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-guide`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.generated) {
+      setForm((f) => ({
+        ...f,
+        guideBio: data.generated.guestBio ?? "",
+        guideFrameworks: data.generated.frameworks ?? "",
+        guideTakeaways: data.generated.takeaways ?? "",
+        guideQuotes: data.generated.quotes ?? "",
+        guideActionItems: data.generated.actionItems ?? "",
+        guidePdfUrl: "",
+      }));
+      setMessage({ type: "success", text: "Episode guide generated — review and save" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Guide generation failed" });
+    }
+    setGeneratingGuide(false);
+  }
+
+Replace it with:
+  async function handleGenerateGuide() {
+    setGeneratingGuide(true);
+    setMessage(null);
+
+    const steps = [
+      "Reading transcript...",
+      "Researching guest background...",
+      "Extracting key frameworks...",
+      "Identifying top takeaways...",
+      "Pulling memorable quotes...",
+      "Building action items...",
+      "Finalising guide content...",
+    ];
+    let stepIndex = 0;
+    setGuideStatus(steps[0]);
+
+    const interval = setInterval(() => {
+      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+      setGuideStatus(steps[stepIndex]);
+    }, 4000);
+
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-guide`,
+      { method: "POST" }
+    );
+
+    clearInterval(interval);
+    setGuideStatus("");
+
+    const data = await res.json();
+    if (res.ok && data.generated) {
+      setForm((f) => ({
+        ...f,
+        guideBio: data.generated.guestBio ?? "",
+        guideFrameworks: data.generated.frameworks ?? "",
+        guideTakeaways: data.generated.takeaways ?? "",
+        guideQuotes: data.generated.quotes ?? "",
+        guideActionItems: data.generated.actionItems ?? "",
+        guidePdfUrl: "",
+      }));
+      setMessage({ type: "success", text: "Episode guide generated — review and save" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Guide generation failed" });
+    }
+    setGeneratingGuide(false);
+  }
+
+Find this exact string:
+            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating guide..." : "Generate episode guide"}
+            </button>
+
+Replace it with:
+            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating..." : "Generate episode guide"}
+            </button>
+            {generatingGuide && guideStatus && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
+                <p className="text-xs text-brand-purple font-medium">{guideStatus}</p>
+              </div>
+            )}
+
+Verification: Confirm that:
+1. guideStatus state is added
+2. Status messages cycle every 4 seconds during generation
+3. Spinner and status message appear below the button while generating
+4. Status clears when generation completes or fails
+5. TypeScript typecheck passes with zero errors
