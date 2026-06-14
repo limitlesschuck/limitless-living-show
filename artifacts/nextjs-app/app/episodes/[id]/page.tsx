@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import GuideDownloadModal from "@/components/GuideDownloadModal";
 
 export const dynamic = 'force-dynamic';
 
@@ -34,12 +35,23 @@ async function getEpisode(idOrSlug: string) {
   });
 }
 
+async function getSiteConfig() {
+  const record = await prisma.siteConfig.findFirst();
+  const cfg = record?.config as Record<string, unknown> | null;
+  return {
+    episodeGuideEnabled: cfg?.episodeGuideEnabled === true,
+  };
+}
+
 export default async function EpisodeDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const episode = await getEpisode(params.id);
+  const [episode, siteConfig] = await Promise.all([
+    getEpisode(params.id),
+    getSiteConfig(),
+  ]);
   if (!episode) notFound();
 
   if (episode.slug && params.id !== episode.slug) {
@@ -178,6 +190,22 @@ export default async function EpisodeDetailPage({
           </div>
         )}
 
+
+        {/* Episode Guide Download */}
+        {siteConfig.episodeGuideEnabled && episode.guidePdfUrl && (
+          <div className="bg-brand-gold/10 border border-brand-gold rounded-2xl p-6 mb-8">
+            <h2 className="text-lg font-extrabold text-brand-purple-dark mb-1">
+              📄 Free Episode Guide
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Get the key takeaways, frameworks, and action items from this episode as a free PDF guide.
+            </p>
+            <GuideDownloadModal
+              episodeId={episode.id}
+              episodeTitle={episode.titleYoutube ?? episode.titleOriginal}
+            />
+          </div>
+        )}
 
         {/* Bottom CTA */}
         <div className="border-t border-gray-100 pt-8 text-center">

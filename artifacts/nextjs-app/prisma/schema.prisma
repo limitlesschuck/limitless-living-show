@@ -113,7 +113,8 @@ model Episode {
   cta         Cta?         @relation(fields: [ctaId], references: [id])
   leads       Lead[]
   publishLogs PublishLog[]
-  aiLogs      AiContentLog[]
+  aiLogs         AiContentLog[]
+  guideDownloads GuideDownload[]
 
   @@index([crisisCategory])
   @@index([publishStatus])
@@ -156,6 +157,19 @@ model Lead {
   @@index([email])
   @@index([crisisCategory])
   @@index([urgency])
+}
+
+model GuideDownload {
+  id          String   @id @default(cuid())
+  email       String
+  firstName   String?
+  episodeId   String
+  createdAt   DateTime @default(now())
+
+  episode Episode @relation(fields: [episodeId], references: [id])
+
+  @@index([email])
+  @@index([episodeId])
 }
 
 model AffiliateRoute {
