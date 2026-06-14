@@ -30,6 +30,10 @@ NEXTAUTH_URL = "https://limitlesslivingpodcast.com/api/auth"
 DIRECT_URL = "postgresql://postgres:password@helium/heliumdb?sslmode=disable"
 
 [[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
 localPort = 5000
 externalPort = 5000
 

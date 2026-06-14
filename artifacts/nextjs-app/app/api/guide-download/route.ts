@@ -53,6 +53,7 @@ async function addTagsToSystemeContact(contactId: string, tagIds: number[]): Pro
 }
 
 export async function POST(req: NextRequest) {
+  try {
   const body = await req.json();
   const { email, firstName, episodeId } = body as { email: string; firstName: string; episodeId: string };
 
@@ -104,4 +105,9 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true, pdfUrl: episode.guidePdfUrl });
+  } catch (err) {
+    console.error("guide-download error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
