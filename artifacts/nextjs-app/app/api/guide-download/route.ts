@@ -5,7 +5,7 @@ const SYSTEME_API_KEY = process.env.SYSTEME_API_KEY ?? "";
 const SYSTEME_API_URL = "https://api.systeme.io/api";
 
 const SYSTEME_TAG_IDS: Record<string, number> = {
-  "lls-guide-download": 1975340,
+  "lls-guide-download": 2052428,
   "lls-grief": 1975331,
   "lls-relationship": 1975332,
   "lls-health": 1975333,
