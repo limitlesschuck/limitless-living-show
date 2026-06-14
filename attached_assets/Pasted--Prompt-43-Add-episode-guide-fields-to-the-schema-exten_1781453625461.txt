@@ -1,0 +1,459 @@
+## Prompt 43
+
+Add episode guide fields to the schema, extend Claude generation to produce guide content, add a guide generation button to the episode edit page, and add a guide enable/disable toggle to site settings.
+
+Step 1 — Install @react-pdf/renderer.
+
+Run in the shell:
+cd /home/runner/workspace/artifacts/nextjs-app && pnpm add @react-pdf/renderer @types/react-pdf
+
+
+Step 2 — Add guide fields to the Episode schema.
+
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+
+Find this exact string:
+  riversideTitle        String?
+  riversideKeywords     String?   @db.Text
+
+Replace it with:
+  riversideTitle        String?
+  riversideKeywords     String?   @db.Text
+  guideBio              String?   @db.Text
+  guideFrameworks       String?   @db.Text
+  guideTakeaways        String?   @db.Text
+  guideQuotes           String?   @db.Text
+  guideActionItems      String?   @db.Text
+  guidePdfUrl           String?
+
+After saving run:
+pnpm --filter @workspace/nextjs-app run db:push
+
+
+Step 3 — Add guide toggle to SiteConfig seed default.
+
+File to edit: artifacts/nextjs-app/prisma/seed.ts
+
+Find this exact string:
+          episodeCardImage: "youtube_thumbnail",
+
+Replace it with:
+          episodeCardImage: "youtube_thumbnail",
+          episodeGuideEnabled: false,
+
+
+Step 4 — Add guide toggle to the Settings page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/settings/page.tsx
+
+Find this exact string:
+  const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/site-config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
+      });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage(null);
+    const res = await fetch("/api/admin/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ episodeCardImage }),
+    });
+
+Replace it with:
+  const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
+  const [episodeGuideEnabled, setEpisodeGuideEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/site-config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
+        if (data.episodeGuideEnabled !== undefined) setEpisodeGuideEnabled(data.episodeGuideEnabled);
+      });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage(null);
+    const res = await fetch("/api/admin/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ episodeCardImage, episodeGuideEnabled }),
+    });
+
+Now add the guide toggle UI. Find this exact string:
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving..." : "Save settings"}
+          </button>
+        </div>
+
+Replace it with:
+        <div className="border-t border-gray-100 pt-6 mt-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">Episode guide</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            When enabled, Claude generates a downloadable PDF guide for each episode. Visitors enter their email to download.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setEpisodeGuideEnabled(!episodeGuideEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${episodeGuideEnabled ? "bg-brand-purple" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${episodeGuideEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+            <span className="text-sm text-gray-700">
+              {episodeGuideEnabled ? "Episode guides enabled" : "Episode guides disabled"}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          >
+            {saving ? "Saving..." : "Save settings"}
+          </button>
+        </div>
+
+
+Step 5 — Add guide content generation to lib/claude.ts.
+
+File to edit: artifacts/nextjs-app/lib/claude.ts
+
+Find this exact string:
+export interface GeneratedEpisodeContent {
+  youtubeTitles: string[];
+  youtubeDescription: string;
+  podcastTitle: string;
+  websiteDescription: string;
+  tags: string[];
+  suggestedCategory: string;
+}
+
+Replace it with:
+export interface GeneratedEpisodeContent {
+  youtubeTitles: string[];
+  youtubeDescription: string;
+  podcastTitle: string;
+  websiteDescription: string;
+  tags: string[];
+  suggestedCategory: string;
+}
+
+export interface GeneratedGuideContent {
+  guestBio: string;
+  frameworks: string;
+  takeaways: string;
+  quotes: string;
+  actionItems: string;
+}
+
+export async function generateGuideContent(params: {
+  guestName: string | null;
+  transcript: string | null;
+  descriptionOriginal: string | null;
+  showName?: string;
+}): Promise<GeneratedGuideContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const contentSource = params.transcript
+    ? `TRANSCRIPT:\n${params.transcript.slice(0, 10000)}`
+    : `SHOW NOTES:\n${params.descriptionOriginal ?? "Not provided"}`;
+
+  const prompt = `You are an expert content creator for the Limitless Living Show podcast. Your job is to extract and structure the most valuable content from a podcast episode transcript into a downloadable episode guide for listeners.
+
+Guest: ${params.guestName ?? "Not specified"}
+
+${contentSource}
+
+Generate a structured episode guide and return ONLY valid JSON with no markdown, no code fences, no preamble:
+
+{
+  "guestBio": "2-3 paragraph bio of the guest covering who they are, their background, credentials, and what makes them uniquely qualified to speak on this topic. Write in third person. 150-200 words.",
+  "frameworks": "The 2-4 most important frameworks, systems, or methodologies shared in this episode. For each one: give it a name, describe what it is in 2-3 sentences, explain how to apply it in 3-5 bullet points. Format as clear sections separated by double newlines.",
+  "takeaways": "The 5-7 most powerful insights or lessons from this episode. Each takeaway should be 2-3 sentences that capture the idea and why it matters. Format as a numbered list.",
+  "quotes": "The 5-8 most memorable, quotable, and actionable direct quotes from the guest. Include only quotes that stand alone and deliver value without context. Format as a simple list with each quote on its own line starting with a quotation mark.",
+  "actionItems": "A practical checklist of 8-12 action items the listener can implement immediately based on this episode. Each item should be specific and actionable, starting with a verb. Format as a simple list."
+}`;
+
+  const res = await fetch(CLAUDE_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 3000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Claude API error generating guide: ${res.status} — ${error}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.[0]?.text ?? "";
+
+  try {
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned) as GeneratedGuideContent;
+  } catch {
+    throw new Error(`Failed to parse guide response: ${text.slice(0, 200)}`);
+  }
+}
+
+
+Step 6 — Create the guide generation API route.
+
+Create a new file at artifacts/nextjs-app/app/api/admin/episodes/[id]/generate-guide/route.ts with the following contents:
+
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { generateGuideContent } from "@/lib/claude";
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || !["super_admin", "editor"].includes(session.user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episode = await prisma.episode.findUnique({
+    where: { id: params.id },
+  });
+
+  if (!episode) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!episode.transcript && !episode.descriptionOriginal) {
+    return NextResponse.json(
+      { error: "Episode needs a transcript or show notes before generating a guide" },
+      { status: 400 }
+    );
+  }
+
+  let generated;
+  try {
+    generated = await generateGuideContent({
+      guestName: episode.guestName,
+      transcript: episode.transcript,
+      descriptionOriginal: episode.descriptionOriginal,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
+  await prisma.episode.update({
+    where: { id: episode.id },
+    data: {
+      guideBio: generated.guestBio,
+      guideFrameworks: generated.frameworks,
+      guideTakeaways: generated.takeaways,
+      guideQuotes: generated.quotes,
+      guideActionItems: generated.actionItems,
+      guidePdfUrl: null,
+    },
+  });
+
+  return NextResponse.json({ generated });
+}
+
+
+Step 7 — Add the Generate Guide button and guide content fields to the episode edit page.
+
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+
+Find this exact string:
+  const [resyncing, setResyncing] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+
+Replace it with:
+  const [resyncing, setResyncing] = useState(false);
+  const [uploadingArt, setUploadingArt] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [generatingGuide, setGeneratingGuide] = useState(false);
+
+Find this exact string:
+  const [form, setForm] = useState({
+    titleYoutube: "",
+    titlePodcast: "",
+    descriptionYoutube: "",
+    descriptionWebsite: "",
+    guestName: "",
+    guestBio: "",
+    guestEmail: "",
+    affiliateLink: "",
+    swipeCopy: "",
+    systemeContactId: "",
+    crisisCategory: "",
+    tags: "",
+    publishStatus: "draft",
+    youtubeId: "",
+    mp4Url: "",
+    coverArtUrl: "",
+    youtubeThumbnailUrl: "",
+    captivatePlayerId: "",
+  });
+
+Replace it with:
+  const [form, setForm] = useState({
+    titleYoutube: "",
+    titlePodcast: "",
+    descriptionYoutube: "",
+    descriptionWebsite: "",
+    guestName: "",
+    guestBio: "",
+    guestEmail: "",
+    affiliateLink: "",
+    swipeCopy: "",
+    systemeContactId: "",
+    crisisCategory: "",
+    tags: "",
+    publishStatus: "draft",
+    youtubeId: "",
+    mp4Url: "",
+    coverArtUrl: "",
+    youtubeThumbnailUrl: "",
+    captivatePlayerId: "",
+    guideBio: "",
+    guideFrameworks: "",
+    guideTakeaways: "",
+    guideQuotes: "",
+    guideActionItems: "",
+    guidePdfUrl: "",
+  });
+
+Find this exact string:
+      captivatePlayerId: data.captivatePlayerId ?? "",
+    });
+
+Replace it with:
+      captivatePlayerId: data.captivatePlayerId ?? "",
+      guideBio: data.guideBio ?? "",
+      guideFrameworks: data.guideFrameworks ?? "",
+      guideTakeaways: data.guideTakeaways ?? "",
+      guideQuotes: data.guideQuotes ?? "",
+      guideActionItems: data.guideActionItems ?? "",
+      guidePdfUrl: data.guidePdfUrl ?? "",
+    });
+
+Find this exact string:
+  async function handleResync() {
+
+Add this function immediately before it:
+  async function handleGenerateGuide() {
+    setGeneratingGuide(true);
+    setMessage(null);
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-guide`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.generated) {
+      setForm((f) => ({
+        ...f,
+        guideBio: data.generated.guestBio ?? "",
+        guideFrameworks: data.generated.frameworks ?? "",
+        guideTakeaways: data.generated.takeaways ?? "",
+        guideQuotes: data.generated.quotes ?? "",
+        guideActionItems: data.generated.actionItems ?? "",
+        guidePdfUrl: "",
+      }));
+      setMessage({ type: "success", text: "Episode guide generated — review and save" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Guide generation failed" });
+    }
+    setGeneratingGuide(false);
+  }
+
+Now add guide fields to the episode edit page form. Find this exact string:
+            <Field label="Re-sync from Captivate">
+
+Add a new guide section immediately before it. Find this exact string:
+            <button
+              onClick={handleResync}
+              disabled={resyncing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {resyncing ? "Syncing..." : "Re-sync from Captivate"}
+            </button>
+
+Replace it with:
+            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating guide..." : "Generate episode guide"}
+            </button>
+
+            <button
+              onClick={handleResync}
+              disabled={resyncing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {resyncing ? "Syncing..." : "Re-sync from Captivate"}
+            </button>
+
+Now add the guide content fields to the PATCH allowed fields list.
+
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/route.ts
+
+Find this exact string:
+    "captivatePlayerId",
+    "ctaId",
+  ];
+
+Replace it with:
+    "captivatePlayerId",
+    "guideBio",
+    "guideFrameworks",
+    "guideTakeaways",
+    "guideQuotes",
+    "guideActionItems",
+    "guidePdfUrl",
+    "ctaId",
+  ];
+
+
+Verification: Confirm that:
+1. @react-pdf/renderer installed successfully
+2. Schema has all 6 guide fields and db:push completed
+3. SiteConfig seed default includes episodeGuideEnabled: false
+4. Settings page has the episode guide toggle
+5. lib/claude.ts has generateGuideContent function
+6. app/api/admin/episodes/[id]/generate-guide/route.ts created
+7. Episode edit page has Generate episode guide button
+8. Episode edit page form state includes all guide fields
+9. PATCH route allows all 6 guide fields
+10. TypeScript typecheck passes with zero errors
+11. Test in dev — click Generate episode guide on an episode with a transcript and confirm guide content is generated and saved

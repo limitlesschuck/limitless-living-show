@@ -59,6 +59,12 @@ export async function PATCH(
     "coverArtUrl",
     "youtubeThumbnailUrl",
     "captivatePlayerId",
+    "guideBio",
+    "guideFrameworks",
+    "guideTakeaways",
+    "guideQuotes",
+    "guideActionItems",
+    "guidePdfUrl",
     "ctaId",
     "slug",
   ];

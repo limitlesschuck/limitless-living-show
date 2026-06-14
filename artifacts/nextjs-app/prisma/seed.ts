@@ -128,6 +128,7 @@ async function main() {
       data: {
         config: {
           episodeCardImage: "youtube_thumbnail",
+          episodeGuideEnabled: false,
         },
       },
     });

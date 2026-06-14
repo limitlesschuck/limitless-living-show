@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function SettingsPage() {
   const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
+  const [episodeGuideEnabled, setEpisodeGuideEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -12,6 +13,7 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
+        if (data.episodeGuideEnabled !== undefined) setEpisodeGuideEnabled(data.episodeGuideEnabled);
       });
   }, []);
 
@@ -21,7 +23,7 @@ export default function SettingsPage() {
     const res = await fetch("/api/admin/site-config", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ episodeCardImage }),
+      body: JSON.stringify({ episodeCardImage, episodeGuideEnabled }),
     });
     if (res.ok) {
       setMessage({ type: "success", text: "Settings saved" });
@@ -67,7 +69,25 @@ export default function SettingsPage() {
             <p className="text-xs font-normal text-gray-500 mt-0.5">Square artwork, shown in full</p>
           </button>
         </div>
-        <div className="flex justify-end">
+        <div className="border-t border-gray-100 pt-6 mt-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">Episode guide</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            When enabled, Claude generates a downloadable PDF guide for each episode. Visitors enter their email to download.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setEpisodeGuideEnabled(!episodeGuideEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${episodeGuideEnabled ? "bg-brand-purple" : "bg-gray-300"}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${episodeGuideEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+            <span className="text-sm text-gray-700">
+              {episodeGuideEnabled ? "Episode guides enabled" : "Episode guides disabled"}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex justify-end mt-6">
           <button
             onClick={handleSave}
             disabled={saving}

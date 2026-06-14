@@ -96,6 +96,12 @@ model Episode {
   episodeNumber         Int?
   riversideTitle        String?
   riversideKeywords     String?   @db.Text
+  guideBio              String?   @db.Text
+  guideFrameworks       String?   @db.Text
+  guideTakeaways        String?   @db.Text
+  guideQuotes           String?   @db.Text
+  guideActionItems      String?   @db.Text
+  guidePdfUrl           String?
   durationSeconds       Int?
   publishStatus         String    @default("draft")
   publishedAt           DateTime?

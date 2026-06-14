@@ -56,6 +56,7 @@ export default function EpisodeDetailPage() {
   const [resyncing, setResyncing] = useState(false);
   const [uploadingArt, setUploadingArt] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [generatingGuide, setGeneratingGuide] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -83,6 +84,12 @@ export default function EpisodeDetailPage() {
     systemeContactId: "",
     slug: "",
     captivatePlayerId: "",
+    guideBio: "",
+    guideFrameworks: "",
+    guideTakeaways: "",
+    guideQuotes: "",
+    guideActionItems: "",
+    guidePdfUrl: "",
   });
 
   async function loadEpisode() {
@@ -109,6 +116,12 @@ export default function EpisodeDetailPage() {
       systemeContactId: data.systemeContactId ?? "",
       slug: data.slug ?? "",
       captivatePlayerId: data.captivatePlayerId ?? "",
+      guideBio: data.guideBio ?? "",
+      guideFrameworks: data.guideFrameworks ?? "",
+      guideTakeaways: data.guideTakeaways ?? "",
+      guideQuotes: data.guideQuotes ?? "",
+      guideActionItems: data.guideActionItems ?? "",
+      guidePdfUrl: data.guidePdfUrl ?? "",
     });
     setLoading(false);
   }
@@ -134,6 +147,31 @@ export default function EpisodeDetailPage() {
       setMessage({ type: "error", text: "Save failed" });
     }
     setSaving(false);
+  }
+
+  async function handleGenerateGuide() {
+    setGeneratingGuide(true);
+    setMessage(null);
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-guide`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.generated) {
+      setForm((f) => ({
+        ...f,
+        guideBio: data.generated.guestBio ?? "",
+        guideFrameworks: data.generated.frameworks ?? "",
+        guideTakeaways: data.generated.takeaways ?? "",
+        guideQuotes: data.generated.quotes ?? "",
+        guideActionItems: data.generated.actionItems ?? "",
+        guidePdfUrl: "",
+      }));
+      setMessage({ type: "success", text: "Episode guide generated — review and save" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Guide generation failed" });
+    }
+    setGeneratingGuide(false);
   }
 
   async function handleResync() {
@@ -709,6 +747,14 @@ export default function EpisodeDetailPage() {
               className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
+            </button>
+
+            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating guide..." : "Generate episode guide"}
             </button>
 
             <button

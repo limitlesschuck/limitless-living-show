@@ -10,6 +10,73 @@ export interface GeneratedEpisodeContent {
   suggestedCategory: string;
 }
 
+export interface GeneratedGuideContent {
+  guestBio: string;
+  frameworks: string;
+  takeaways: string;
+  quotes: string;
+  actionItems: string;
+}
+
+export async function generateGuideContent(params: {
+  guestName: string | null;
+  transcript: string | null;
+  descriptionOriginal: string | null;
+  showName?: string;
+}): Promise<GeneratedGuideContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const contentSource = params.transcript
+    ? `TRANSCRIPT:\n${params.transcript.slice(0, 10000)}`
+    : `SHOW NOTES:\n${params.descriptionOriginal ?? "Not provided"}`;
+
+  const prompt = `You are an expert content creator for the Limitless Living Show podcast. Your job is to extract and structure the most valuable content from a podcast episode transcript into a downloadable episode guide for listeners.
+
+Guest: ${params.guestName ?? "Not specified"}
+
+${contentSource}
+
+Generate a structured episode guide and return ONLY valid JSON with no markdown, no code fences, no preamble:
+
+{
+  "guestBio": "2-3 paragraph bio of the guest covering who they are, their background, credentials, and what makes them uniquely qualified to speak on this topic. Write in third person. 150-200 words.",
+  "frameworks": "The 2-4 most important frameworks, systems, or methodologies shared in this episode. For each one: give it a name, describe what it is in 2-3 sentences, explain how to apply it in 3-5 bullet points. Format as clear sections separated by double newlines.",
+  "takeaways": "The 5-7 most powerful insights or lessons from this episode. Each takeaway should be 2-3 sentences that capture the idea and why it matters. Format as a numbered list.",
+  "quotes": "The 5-8 most memorable, quotable, and actionable direct quotes from the guest. Include only quotes that stand alone and deliver value without context. Format as a simple list with each quote on its own line starting with a quotation mark.",
+  "actionItems": "A practical checklist of 8-12 action items the listener can implement immediately based on this episode. Each item should be specific and actionable, starting with a verb. Format as a simple list."
+}`;
+
+  const res = await fetch(CLAUDE_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 3000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Claude API error generating guide: ${res.status} — ${error}`);
+  }
+
+  const data = await res.json();
+  const text = data.content?.[0]?.text ?? "";
+
+  try {
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned) as GeneratedGuideContent;
+  } catch {
+    throw new Error(`Failed to parse guide response: ${text.slice(0, 200)}`);
+  }
+}
+
 export async function generateEpisodeContent(params: {
   titleOriginal: string;
   descriptionOriginal: string;
