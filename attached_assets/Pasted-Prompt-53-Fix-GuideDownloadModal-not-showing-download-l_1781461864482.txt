@@ -1,0 +1,55 @@
+Prompt 53 — Fix GuideDownloadModal not showing download link after submission
+File to edit: artifacts/nextjs-app/components/GuideDownloadModal.tsx
+Find this exact string:
+tsx  async function handleSubmit() {
+    if (!email) { setError("Please enter your email."); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/guide-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, firstName, episodeId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+      localStorage.setItem(LS_KEY, email);
+      setPdfUrl(data.pdfUrl);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+Replace with:
+tsx  async function handleSubmit() {
+    if (!email) { setError("Please enter your email."); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/guide-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, firstName, episodeId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+      localStorage.setItem(LS_KEY, email);
+      setOpen(false);
+      setPdfUrl(data.pdfUrl);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+The only change is setOpen(false) before setPdfUrl — this closes the modal first, then renders the download link in place of the button.
+Also clear your browser's localStorage for the dev preview domain before testing, so the return-visitor shortcut doesn't interfere. In Chrome DevTools → Application → Local Storage → delete the lls_guide_email key.
+Verification:
+
+Clear lls_guide_email from localStorage in DevTools.
+Submit the modal with name and email.
+The modal closes and a "⬇ Download Episode Guide" link renders in its place.
+Click it — the PDF opens.
+Reload the page — the download link appears immediately without the modal.
+TypeScript typecheck passes with zero errors.

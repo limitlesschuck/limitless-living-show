@@ -46,6 +46,7 @@ export default function GuideDownloadModal({ episodeId, episodeTitle: _episodeTi
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
       localStorage.setItem(LS_KEY, email);
+      setOpen(false);
       setPdfUrl(data.pdfUrl);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
