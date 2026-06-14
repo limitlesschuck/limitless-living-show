@@ -133,6 +133,18 @@ async function main() {
       },
     });
     console.log("Seeded site config");
+  } else {
+    const cfg = existingSiteConfig.config as Record<string, unknown>;
+    await prisma.siteConfig.update({
+      where: { id: existingSiteConfig.id },
+      data: {
+        config: {
+          ...cfg,
+          episodeGuideEnabled: true,
+        },
+      },
+    });
+    console.log("Updated site config");
   }
 
   const existingConfig = await prisma.assessmentConfig.findFirst();
