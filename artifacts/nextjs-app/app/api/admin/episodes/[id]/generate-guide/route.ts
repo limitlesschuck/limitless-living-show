@@ -37,6 +37,7 @@ export async function POST(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Guide generation error:", error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
