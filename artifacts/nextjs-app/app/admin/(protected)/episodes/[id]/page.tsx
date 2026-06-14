@@ -472,6 +472,72 @@ export default function EpisodeDetailPage() {
             </Field>
           </Section>
 
+          {/* Episode Guide Content */}
+          {(form.guideBio || form.guideFrameworks || form.guideTakeaways || form.guideQuotes || form.guideActionItems) && (
+            <Section title="Episode guide content">
+              <p className="text-xs text-gray-500 -mt-2 mb-4">
+                Generated guide content. Edit as needed then save. The PDF will be generated when a visitor requests it.
+              </p>
+              <Field label="Guest bio">
+                <textarea
+                  value={form.guideBio}
+                  onChange={(e) => setForm((f) => ({ ...f, guideBio: e.target.value }))}
+                  rows={6}
+                  className="input"
+                  placeholder="Guest bio for the episode guide"
+                />
+              </Field>
+              <Field label="Key frameworks">
+                <textarea
+                  value={form.guideFrameworks}
+                  onChange={(e) => setForm((f) => ({ ...f, guideFrameworks: e.target.value }))}
+                  rows={12}
+                  className="input"
+                  placeholder="Frameworks and methodologies from this episode"
+                />
+              </Field>
+              <Field label="Key takeaways">
+                <textarea
+                  value={form.guideTakeaways}
+                  onChange={(e) => setForm((f) => ({ ...f, guideTakeaways: e.target.value }))}
+                  rows={10}
+                  className="input"
+                  placeholder="Top insights and lessons"
+                />
+              </Field>
+              <Field label="Memorable quotes">
+                <textarea
+                  value={form.guideQuotes}
+                  onChange={(e) => setForm((f) => ({ ...f, guideQuotes: e.target.value }))}
+                  rows={8}
+                  className="input"
+                  placeholder="Direct quotes from the guest"
+                />
+              </Field>
+              <Field label="Action items">
+                <textarea
+                  value={form.guideActionItems}
+                  onChange={(e) => setForm((f) => ({ ...f, guideActionItems: e.target.value }))}
+                  rows={10}
+                  className="input"
+                  placeholder="Practical checklist for listeners"
+                />
+              </Field>
+              {form.guidePdfUrl && (
+                <Field label="Generated PDF">
+                  <a
+                    href={form.guidePdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-brand-purple hover:underline"
+                  >
+                    View PDF →
+                  </a>
+                </Field>
+              )}
+            </Section>
+          )}
+
           <Section title="Guest details">
             <Field label="Guest name">
               <input
