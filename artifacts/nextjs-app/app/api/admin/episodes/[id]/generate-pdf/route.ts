@@ -18,7 +18,7 @@ const R2 = new S3Client({
 
 const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? "limitless-living-media";
 const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.limitlesslivingpodcast.com").replace(/\/$/, "");
 
 export async function POST(
   _req: NextRequest,
@@ -55,7 +55,7 @@ export async function POST(
       guideTakeaways: episode.guideTakeaways ?? "",
       guideQuotes: episode.guideQuotes ?? "",
       guideActionItems: episode.guideActionItems ?? "",
-      assessmentUrl: `${APP_URL}/assessment`,
+      assessmentUrl: `${APP_URL || "https://www.limitlesslivingpodcast.com"}/assessment`,
     }) as unknown as React.ReactElement<DocumentProps>;
 
     const pdfBuffer = await renderToBuffer(pdfElement);
