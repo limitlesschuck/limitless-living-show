@@ -22,20 +22,12 @@ const STATUS_STYLES: Record<string, string> = {
   published: "bg-green-50 text-green-700",
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "Grief & loss",
-  relationship: "Relationship",
-  health: "Health & addiction",
-  financial: "Financial",
-  spiritual: "Spiritual",
-  career: "Career & purpose",
-};
-
 export default function EpisodesPage() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({});
 
   async function loadEpisodes(status: string) {
     setLoading(true);
@@ -50,6 +42,17 @@ export default function EpisodesPage() {
   useEffect(() => {
     loadEpisodes(filter);
   }, [filter]);
+
+  useEffect(() => {
+    fetch("/api/admin/categories")
+      .then((r) => r.json())
+      .then((data) => {
+        const map = Object.fromEntries(
+          (data.categories ?? []).map((c: { value: string; label: string }) => [c.value, c.label])
+        );
+        setCategoryLabels(map);
+      });
+  }, []);
 
   return (
     <div>
@@ -137,7 +140,7 @@ export default function EpisodesPage() {
                   <td className="px-4 py-3 hidden sm:table-cell">
                     <span className="text-xs text-gray-600">
                       {ep.crisisCategory
-                        ? CATEGORY_LABELS[ep.crisisCategory] ??
+                        ? categoryLabels[ep.crisisCategory] ??
                           ep.crisisCategory
                         : "—"}
                     </span>

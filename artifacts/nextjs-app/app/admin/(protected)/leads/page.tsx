@@ -29,15 +29,6 @@ interface GuideOption {
   title: string;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "Grief & loss",
-  relationship: "Relationship",
-  health: "Health & addiction",
-  financial: "Financial",
-  spiritual: "Spiritual",
-  career: "Career & purpose",
-};
-
 const RESULT_STYLES: Record<string, string> = {
   coach_referral: "bg-red-50 text-red-700",
   resource: "bg-blue-50 text-blue-700",
@@ -60,6 +51,7 @@ export default function LeadsPage() {
   const [guideFilter, setGuideFilter] = useState("");
   const [guideOptions, setGuideOptions] = useState<GuideOption[]>([]);
   const [selected, setSelected] = useState<Lead | null>(null);
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({});
 
   async function loadLeads() {
     setLoading(true);
@@ -91,6 +83,14 @@ export default function LeadsPage() {
 
   useEffect(() => {
     loadGuideOptions();
+    fetch("/api/admin/categories")
+      .then((r) => r.json())
+      .then((data) => {
+        const map = Object.fromEntries(
+          (data.categories ?? []).map((c: { value: string; label: string }) => [c.value, c.label])
+        );
+        setCategoryLabels(map);
+      });
   }, []);
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function LeadsPage() {
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
         >
           <option value="">All categories</option>
-          {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
+          {Object.entries(categoryLabels).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
@@ -186,7 +186,7 @@ export default function LeadsPage() {
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">
                         <span className="text-xs text-gray-600">
-                          {CATEGORY_LABELS[lead.crisisCategory] ?? lead.crisisCategory}
+                          {categoryLabels[lead.crisisCategory] ?? lead.crisisCategory}
                         </span>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
@@ -240,7 +240,7 @@ export default function LeadsPage() {
                 <DetailRow label="Email" value={selected.email} />
                 <DetailRow
                   label="Category"
-                  value={CATEGORY_LABELS[selected.crisisCategory] ?? selected.crisisCategory}
+                  value={categoryLabels[selected.crisisCategory] ?? selected.crisisCategory}
                 />
                 <DetailRow
                   label="Duration"

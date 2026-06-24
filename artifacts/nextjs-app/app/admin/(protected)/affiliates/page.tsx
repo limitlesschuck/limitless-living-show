@@ -13,16 +13,6 @@ interface AffiliateRoute {
   isDefault: boolean;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "Grief & loss",
-  relationship: "Relationship",
-  health: "Health & addiction",
-  financial: "Financial",
-  spiritual: "Spiritual",
-  career: "Career & purpose",
-  default: "— Default fallback —",
-};
-
 const URGENCY_LABELS: Record<string, string> = {
   crisis: "Crisis",
   struggling: "Struggling",
@@ -48,6 +38,16 @@ export default function AffiliatesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({});
+
+  async function loadCategories() {
+    const res = await fetch("/api/admin/categories");
+    const data = await res.json();
+    const map = Object.fromEntries(
+      (data.categories ?? []).map((c: { value: string; label: string }) => [c.value, c.label])
+    );
+    setCategoryLabels(map);
+  }
 
   async function loadRoutes() {
     setLoading(true);
@@ -115,7 +115,7 @@ export default function AffiliatesPage() {
     loadRoutes();
   }
 
-  useEffect(() => { loadRoutes(); }, []);
+  useEffect(() => { loadRoutes(); loadCategories(); }, []);
 
   const defaultRoutes = routes.filter((r) => r.isDefault);
   const categoryRoutes = routes.filter((r) => !r.isDefault);
@@ -151,7 +151,7 @@ export default function AffiliatesPage() {
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Crisis category</label>
               <select value={form.crisisCategory} onChange={(e) => setForm((f) => ({ ...f, crisisCategory: e.target.value }))} className="input">
-                {Object.entries(CATEGORY_LABELS).filter(([v]) => v !== "default").map(([v, l]) => (
+                {Object.entries(categoryLabels).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}
               </select>
@@ -200,14 +200,14 @@ export default function AffiliatesPage() {
           {defaultRoutes.length > 0 && (
             <div>
               <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Default fallback</h2>
-              <RouteTable routes={defaultRoutes} editing={editing} setEditing={setEditing} onToggle={handleToggleActive} onSave={handleSaveEdit} onDelete={handleDelete} saving={saving} />
+              <RouteTable routes={defaultRoutes} editing={editing} setEditing={setEditing} onToggle={handleToggleActive} onSave={handleSaveEdit} onDelete={handleDelete} saving={saving} categoryLabels={categoryLabels} />
             </div>
           )}
 
           {/* Category routes */}
           <div>
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Category routes</h2>
-            <RouteTable routes={categoryRoutes} editing={editing} setEditing={setEditing} onToggle={handleToggleActive} onSave={handleSaveEdit} onDelete={handleDelete} saving={saving} />
+            <RouteTable routes={categoryRoutes} editing={editing} setEditing={setEditing} onToggle={handleToggleActive} onSave={handleSaveEdit} onDelete={handleDelete} saving={saving} categoryLabels={categoryLabels} />
           </div>
         </div>
       )}
@@ -223,6 +223,7 @@ function RouteTable({
   onSave,
   onDelete,
   saving,
+  categoryLabels,
 }: {
   routes: AffiliateRoute[];
   editing: AffiliateRoute | null;
@@ -231,16 +232,8 @@ function RouteTable({
   onSave: () => void;
   onDelete: (id: string) => void;
   saving: boolean;
+  categoryLabels: Record<string, string>;
 }) {
-  const CATEGORY_LABELS: Record<string, string> = {
-    grief: "Grief & loss",
-    relationship: "Relationship",
-    health: "Health & addiction",
-    financial: "Financial",
-    spiritual: "Spiritual",
-    career: "Career & purpose",
-  };
-
   const URGENCY_LABELS: Record<string, string> = {
     crisis: "Crisis",
     struggling: "Struggling",
@@ -268,7 +261,7 @@ function RouteTable({
               <tr key={route.id} className="bg-gray-50">
                 <td className="px-4 py-2">
                   <select value={editing.crisisCategory} onChange={(e) => setEditing({ ...editing, crisisCategory: e.target.value })} className="input text-xs py-1">
-                    {Object.entries(CATEGORY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    {Object.entries(categoryLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </td>
                 <td className="px-4 py-2">
@@ -295,7 +288,7 @@ function RouteTable({
             ) : (
               <tr key={route.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3">
-                  <span className="text-sm text-gray-900">{CATEGORY_LABELS[route.crisisCategory] ?? route.crisisCategory}</span>
+                  <span className="text-sm text-gray-900">{categoryLabels[route.crisisCategory] ?? route.crisisCategory}</span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm text-gray-600">{URGENCY_LABELS[route.urgencyLevel] ?? route.urgencyLevel}</span>
