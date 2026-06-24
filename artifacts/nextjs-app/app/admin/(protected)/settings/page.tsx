@@ -2,11 +2,38 @@
 
 import { useEffect, useState } from "react";
 
+type DataTool = "slugs" | "numbers" | "import" | null;
+
+const TOOL_WARNINGS: Record<Exclude<DataTool, null>, { title: string; body: string; confirmLabel: string }> = {
+  slugs: {
+    title: "Generate slugs for all episodes?",
+    body: "This will overwrite the existing slug on any episode whose slug was auto-generated, which can change live public URLs. Episodes with a manually-edited slug are skipped.",
+    confirmLabel: "Yes, generate slugs",
+  },
+  numbers: {
+    title: "Sync episode numbers from Captivate?",
+    body: "This will overwrite the episode number field on episodes that already have one set, based on Captivate's published order. This can renumber episodes you've manually adjusted.",
+    confirmLabel: "Yes, sync episode numbers",
+  },
+  import: {
+    title: "Import new episodes from Captivate?",
+    body: "This will only add new episodes. Existing episode data including titles, descriptions, and all customised content will not be changed.",
+    confirmLabel: "Yes, import new episodes",
+  },
+};
+
 export default function SettingsPage() {
   const [episodeCardImage, setEpisodeCardImage] = useState<"youtube_thumbnail" | "cover_art">("youtube_thumbnail");
   const [episodeGuideEnabled, setEpisodeGuideEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [dataToolsOpen, setDataToolsOpen] = useState(false);
+  const [confirmTool, setConfirmTool] = useState<DataTool>(null);
+  const [generatingSlugs, setGeneratingSlugs] = useState(false);
+  const [syncingNumbers, setSyncingNumbers] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
+  const [toolResult, setToolResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/site-config")
@@ -33,6 +60,58 @@ export default function SettingsPage() {
       setMessage({ type: "error", text: "Save failed — check console for details" });
     }
     setSaving(false);
+  }
+
+  async function handleGenerateSlugs() {
+    setConfirmTool(null);
+    setGeneratingSlugs(true);
+    setToolResult(null);
+    try {
+      const res = await fetch("/api/admin/episodes/generate-slugs", { method: "POST" });
+      const data = await res.json();
+      setToolResult(data.message ?? "Slugs generated");
+    } catch {
+      setToolResult("Error: slug generation failed");
+    }
+    setGeneratingSlugs(false);
+  }
+
+  async function handleSyncNumbers() {
+    setConfirmTool(null);
+    setSyncingNumbers(true);
+    setToolResult(null);
+    try {
+      const res = await fetch("/api/admin/episodes/sync-numbers", { method: "POST" });
+      const data = await res.json();
+      setToolResult(data.message ?? "Sync complete");
+    } catch {
+      setToolResult("Error: sync failed");
+    }
+    setSyncingNumbers(false);
+  }
+
+  async function handleIngest() {
+    setConfirmTool(null);
+    setIngesting(true);
+    setToolResult(null);
+    try {
+      const res = await fetch("/api/admin/episodes/ingest", { method: "POST" });
+      const data = await res.json();
+      if (data.error) {
+        setToolResult(`Error: ${data.error}`);
+      } else {
+        setToolResult(`Done — ${data.created} new episodes imported, ${data.skipped} already existed`);
+      }
+    } catch {
+      setToolResult("Error: Failed to connect to Captivate");
+    }
+    setIngesting(false);
+  }
+
+  function runConfirmedTool() {
+    if (confirmTool === "slugs") handleGenerateSlugs();
+    else if (confirmTool === "numbers") handleSyncNumbers();
+    else if (confirmTool === "import") handleIngest();
   }
 
   return (
@@ -96,6 +175,81 @@ export default function SettingsPage() {
             {saving ? "Saving..." : "Save settings"}
           </button>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mt-6 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setDataToolsOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+        >
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Data tools</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Bulk operations on episode data — use with caution
+            </p>
+          </div>
+          <span className={`text-gray-400 transition-transform ${dataToolsOpen ? "rotate-180" : ""}`}>
+            ▾
+          </span>
+        </button>
+
+        {dataToolsOpen && (
+          <div className="px-6 pb-6 border-t border-gray-100 pt-4 space-y-3">
+            {confirmTool && (
+              <div className="px-4 py-4 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-sm font-medium text-amber-900 mb-1">
+                  {TOOL_WARNINGS[confirmTool].title}
+                </p>
+                <p className="text-xs text-amber-700 mb-3">
+                  {TOOL_WARNINGS[confirmTool].body}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={runConfirmedTool}
+                    className="px-4 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+                  >
+                    {TOOL_WARNINGS[confirmTool].confirmLabel}
+                  </button>
+                  <button
+                    onClick={() => setConfirmTool(null)}
+                    className="px-4 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {toolResult && (
+              <div className="px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                {toolResult}
+              </div>
+            )}
+
+            <button
+              onClick={() => setConfirmTool("slugs")}
+              disabled={generatingSlugs}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingSlugs ? "Generating..." : "Generate slugs"}
+            </button>
+            <button
+              onClick={() => setConfirmTool("numbers")}
+              disabled={syncingNumbers}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {syncingNumbers ? "Syncing..." : "Sync episode numbers"}
+            </button>
+            <button
+              onClick={() => setConfirmTool("import")}
+              disabled={ingesting}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            >
+              {ingesting ? "Importing..." : "Import from Captivate"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
