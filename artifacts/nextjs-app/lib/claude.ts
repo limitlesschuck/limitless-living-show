@@ -89,9 +89,12 @@ export async function generateEpisodeContent(params: {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
 
+  const { getCategoryValuesList } = await import("@/lib/categories");
+  const categoryValues = await getCategoryValuesList();
+
   const categoryHint = params.crisisCategory
     ? `The episode has been categorised as: ${params.crisisCategory}.`
-    : "Please suggest the most appropriate crisis category from: grief, relationship, health, financial, spiritual, career.";
+    : `Please suggest the most appropriate crisis category from: ${categoryValues.join(", ")}.`;
 
   const contentSource = params.transcript
     ? `TRANSCRIPT (use this as the primary source):\n${params.transcript.slice(0, 8000)}`
@@ -118,7 +121,7 @@ Generate the following and return ONLY valid JSON with no markdown, no code fenc
   "podcastTitle": "Rewritten podcast title optimised for Apple and Spotify search — under 60 chars, lead with topic not guest name",
   "websiteDescription": "SEO-optimised episode page description (150-200 words). Include the primary search keyword naturally. Write for someone searching for help with this specific crisis.",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
-  "suggestedCategory": "one of: grief, relationship, health, financial, spiritual, career"
+  "suggestedCategory": "one of: ${categoryValues.join(", ")}"
 }`;
 
   const res = await fetch(CLAUDE_API_URL, {

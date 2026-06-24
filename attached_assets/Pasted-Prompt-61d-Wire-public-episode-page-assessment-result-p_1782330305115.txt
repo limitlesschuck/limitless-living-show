@@ -1,0 +1,152 @@
+Prompt 61d — Wire public episode page, assessment result page, and Claude AI prompt to live categories
+Step 1 — Public episode detail page: use live labels and the episode's real CTA relation
+File to edit: artifacts/nextjs-app/app/episodes/[id]/page.tsx
+Find this exact string:
+tsximport { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import GuideDownloadModal from "@/components/GuideDownloadModal";
+
+export const dynamic = 'force-dynamic';
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship & divorce",
+  health: "Health & addiction",
+  financial: "Financial hardship",
+  spiritual: "Spiritual awakening",
+  career: "Career & purpose",
+};
+
+const CTA_HEADLINES: Record<string, string> = {
+  grief: "Are you dealing with grief or loss?",
+  relationship: "Going through a relationship or divorce?",
+  health: "Struggling with health or addiction?",
+  financial: "Facing financial hardship?",
+  spiritual: "Experiencing a spiritual awakening?",
+  career: "Looking for purpose or a career change?",
+};
+Replace with:
+tsximport { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import GuideDownloadModal from "@/components/GuideDownloadModal";
+import { getCategoryOptions } from "@/lib/categories";
+
+export const dynamic = 'force-dynamic';
+
+async function getCategoryLabels() {
+  const categories = await getCategoryOptions();
+  return Object.fromEntries(categories.map((c) => [c.value, c.label]));
+}
+Find this exact string:
+tsx  const [episode, siteConfig] = await Promise.all([
+    getEpisode(params.id),
+    getSiteConfig(),
+  ]);
+  if (!episode) notFound();
+
+  if (episode.slug && params.id !== episode.slug) {
+    redirect(`/episodes/${episode.slug}`);
+  }
+
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+  const ctaHeadline = episode.crisisCategory
+    ? CTA_HEADLINES[episode.crisisCategory]
+    : "Ready to start your transformation?";
+Replace with:
+tsx  const [episode, siteConfig, categoryLabelsMap] = await Promise.all([
+    getEpisode(params.id),
+    getSiteConfig(),
+    getCategoryLabels(),
+  ]);
+  if (!episode) notFound();
+
+  if (episode.slug && params.id !== episode.slug) {
+    redirect(`/episodes/${episode.slug}`);
+  }
+
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const category = episode.crisisCategory
+    ? categoryLabelsMap[episode.crisisCategory]
+    : null;
+  const ctaHeadline = episode.cta?.headline
+    ?? "Ready to start your transformation?";
+
+Step 2 — Assessment result page
+File to edit: artifacts/nextjs-app/app/assessment/result/page.tsx
+Find this exact string:
+tsximport Link from "next/link";
+import { prisma } from "@/lib/prisma";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "grief and loss",
+  relationship: "relationship challenges",
+  health: "health and addiction",
+  financial: "financial hardship",
+  spiritual: "spiritual awakening",
+  career: "career and purpose",
+};
+Replace with:
+tsximport Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { getCategoryProseMap } from "@/lib/categories";
+Find this exact string:
+tsx  const content = RESULT_CONTENT[resultType] ?? RESULT_CONTENT.resource;
+  const categoryLabel = CATEGORY_LABELS[crisisCategory] ?? crisisCategory;
+Replace with:
+tsx  const content = RESULT_CONTENT[resultType] ?? RESULT_CONTENT.resource;
+  const categoryProseMap = await getCategoryProseMap();
+  const categoryLabel = categoryProseMap[crisisCategory] ?? crisisCategory;
+(If the function containing this code is not already declared async, report back its exact function signature before making further changes, since adding an await call requires the enclosing function to be async.)
+
+Step 3 — Claude AI content generation prompt
+File to edit: artifacts/nextjs-app/lib/claude.ts
+Find this exact string:
+tsexport async function generateEpisodeContent(params: {
+  titleOriginal: string;
+  descriptionOriginal: string;
+  transcript: string | null;
+  riversideTitle: string | null;
+  riversideKeywords: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+}): Promise<GeneratedEpisodeContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const categoryHint = params.crisisCategory
+    ? `The episode has been categorised as: ${params.crisisCategory}.`
+    : "Please suggest the most appropriate crisis category from: grief, relationship, health, financial, spiritual, career.";
+Replace with:
+tsexport async function generateEpisodeContent(params: {
+  titleOriginal: string;
+  descriptionOriginal: string;
+  transcript: string | null;
+  riversideTitle: string | null;
+  riversideKeywords: string | null;
+  guestName: string | null;
+  crisisCategory: string | null;
+}): Promise<GeneratedEpisodeContent> {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error("CLAUDE_API_KEY not set");
+
+  const { getCategoryValuesList } = await import("@/lib/categories");
+  const categoryValues = await getCategoryValuesList();
+
+  const categoryHint = params.crisisCategory
+    ? `The episode has been categorised as: ${params.crisisCategory}.`
+    : `Please suggest the most appropriate crisis category from: ${categoryValues.join(", ")}.`;
+Find this exact string:
+ts  "suggestedCategory": "one of: grief, relationship, health, financial, spiritual, career"
+}`;
+Replace with:
+ts  "suggestedCategory": "one of: ${categoryValues.join(", ")}"
+}`;

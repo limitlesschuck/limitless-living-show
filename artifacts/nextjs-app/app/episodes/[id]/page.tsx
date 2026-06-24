@@ -4,26 +4,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import GuideDownloadModal from "@/components/GuideDownloadModal";
+import { getCategoryOptions } from "@/lib/categories";
 
 export const dynamic = 'force-dynamic';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "Grief & loss",
-  relationship: "Relationship & divorce",
-  health: "Health & addiction",
-  financial: "Financial hardship",
-  spiritual: "Spiritual awakening",
-  career: "Career & purpose",
-};
-
-const CTA_HEADLINES: Record<string, string> = {
-  grief: "Are you dealing with grief or loss?",
-  relationship: "Going through a relationship or divorce?",
-  health: "Struggling with health or addiction?",
-  financial: "Facing financial hardship?",
-  spiritual: "Experiencing a spiritual awakening?",
-  career: "Looking for purpose or a career change?",
-};
+async function getCategoryLabels() {
+  const categories = await getCategoryOptions();
+  return Object.fromEntries(categories.map((c) => [c.value, c.label]));
+}
 
 async function getEpisode(idOrSlug: string) {
   return prisma.episode.findFirst({
@@ -48,9 +36,10 @@ export default async function EpisodeDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [episode, siteConfig] = await Promise.all([
+  const [episode, siteConfig, categoryLabelsMap] = await Promise.all([
     getEpisode(params.id),
     getSiteConfig(),
+    getCategoryLabels(),
   ]);
   if (!episode) notFound();
 
@@ -60,11 +49,10 @@ export default async function EpisodeDetailPage({
 
   const title = episode.titleYoutube ?? episode.titleOriginal;
   const category = episode.crisisCategory
-    ? CATEGORY_LABELS[episode.crisisCategory]
+    ? categoryLabelsMap[episode.crisisCategory]
     : null;
-  const ctaHeadline = episode.crisisCategory
-    ? CTA_HEADLINES[episode.crisisCategory]
-    : "Ready to start your transformation?";
+  const ctaHeadline = episode.cta?.headline
+    ?? "Ready to start your transformation?";
 
   return (
     <div className="min-h-screen bg-white">

@@ -1,14 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "grief and loss",
-  relationship: "relationship challenges",
-  health: "health and addiction",
-  financial: "financial hardship",
-  spiritual: "spiritual awakening",
-  career: "career and purpose",
-};
+import { getCategoryProseMap } from "@/lib/categories";
 
 const RESULT_CONTENT: Record<
   string,
@@ -100,7 +92,8 @@ export default async function ResultPage({
   const urgency = searchParams.urgency ?? "exploring";
 
   const content = RESULT_CONTENT[resultType] ?? RESULT_CONTENT.resource;
-  const categoryLabel = CATEGORY_LABELS[crisisCategory] ?? crisisCategory;
+  const categoryProseMap = await getCategoryProseMap();
+  const categoryLabel = categoryProseMap[crisisCategory] ?? crisisCategory;
 
   const [episodes, affiliateUrl] = await Promise.all([
     getMatchingEpisodes(crisisCategory),
