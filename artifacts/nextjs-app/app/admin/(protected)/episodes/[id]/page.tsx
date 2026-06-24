@@ -393,7 +393,7 @@ export default function EpisodeDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <Section title="Original content (read only)">
+          <CollapsibleSection title="Original content (read only)" defaultOpen={false}>
             <Field label="Original title">
               <p className="text-sm text-gray-700">{episode.titleOriginal}</p>
             </Field>
@@ -404,9 +404,9 @@ export default function EpisodeDetailPage() {
                 </p>
               </Field>
             )}
-          </Section>
+          </CollapsibleSection>
 
-          <Section title="AI-generated content">
+          <CollapsibleSection title="AI-generated content" defaultOpen={true}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs text-gray-500">
                 Generate or regenerate content using Claude AI
@@ -488,75 +488,99 @@ export default function EpisodeDetailPage() {
                 placeholder="grief recovery, starting over, rebuilding your life"
               />
             </Field>
-          </Section>
+          </CollapsibleSection>
 
-          {/* Episode Guide Content */}
-          {(form.guideBio || form.guideFrameworks || form.guideTakeaways || form.guideQuotes || form.guideActionItems) && (
-            <Section title="Episode guide content">
-              <p className="text-xs text-gray-500 -mt-2 mb-4">
-                Review and edit the guide content, then click Save changes. Once saved, click Generate PDF in the sidebar to create the downloadable PDF.
-              </p>
-              <Field label="Guest bio">
-                <textarea
-                  value={form.guideBio}
-                  onChange={(e) => setForm((f) => ({ ...f, guideBio: e.target.value }))}
-                  rows={6}
-                  className="input"
-                  placeholder="Guest bio for the episode guide"
-                />
-              </Field>
-              <Field label="Key frameworks">
-                <textarea
-                  value={form.guideFrameworks}
-                  onChange={(e) => setForm((f) => ({ ...f, guideFrameworks: e.target.value }))}
-                  rows={12}
-                  className="input"
-                  placeholder="Frameworks and methodologies from this episode"
-                />
-              </Field>
-              <Field label="Key takeaways">
-                <textarea
-                  value={form.guideTakeaways}
-                  onChange={(e) => setForm((f) => ({ ...f, guideTakeaways: e.target.value }))}
-                  rows={10}
-                  className="input"
-                  placeholder="Top insights and lessons"
-                />
-              </Field>
-              <Field label="Memorable quotes">
-                <textarea
-                  value={form.guideQuotes}
-                  onChange={(e) => setForm((f) => ({ ...f, guideQuotes: e.target.value }))}
-                  rows={8}
-                  className="input"
-                  placeholder="Direct quotes from the guest"
-                />
-              </Field>
-              <Field label="Action items">
-                <textarea
-                  value={form.guideActionItems}
-                  onChange={(e) => setForm((f) => ({ ...f, guideActionItems: e.target.value }))}
-                  rows={10}
-                  className="input"
-                  placeholder="Practical checklist for listeners"
-                />
-              </Field>
-              {form.guidePdfUrl && (
-                <Field label="Generated PDF">
-                  <a
-                    href={form.guidePdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-brand-purple hover:underline"
-                  >
-                    View PDF →
-                  </a>
-                </Field>
-              )}
-            </Section>
-          )}
+          {/* Episode Guide */}
+          <CollapsibleSection
+            title="Episode guide"
+            subtitle="Generate guide content from the transcript, then create the downloadable PDF"
+            defaultOpen={Boolean(form.guideBio || form.guideFrameworks || form.guideTakeaways)}
+          >
+            <div className="flex flex-col sm:flex-row gap-2 mb-2">
+              <button
+                type="button"
+                onClick={handleGenerateGuide}
+                disabled={generatingGuide}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {generatingGuide ? "Generating..." : "Generate episode guide"}
+              </button>
+              <button
+                type="button"
+                onClick={handleGeneratePdf}
+                disabled={generatingPdf || !form.guideBio}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {generatingPdf ? "Generating PDF..." : "Generate PDF"}
+              </button>
+            </div>
 
-          <Section title="Guest details">
+            {generatingGuide && guideStatus && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
+                <p className="text-xs text-brand-purple font-medium">{guideStatus}</p>
+              </div>
+            )}
+
+            {form.guidePdfUrl && (
+              <a
+                href={form.guidePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                View PDF →
+              </a>
+            )}
+
+            <Field label="Guest bio">
+              <textarea
+                value={form.guideBio}
+                onChange={(e) => setForm((f) => ({ ...f, guideBio: e.target.value }))}
+                rows={6}
+                className="input"
+                placeholder="Guest bio for the episode guide"
+              />
+            </Field>
+            <Field label="Key frameworks">
+              <textarea
+                value={form.guideFrameworks}
+                onChange={(e) => setForm((f) => ({ ...f, guideFrameworks: e.target.value }))}
+                rows={12}
+                className="input"
+                placeholder="Frameworks and methodologies from this episode"
+              />
+            </Field>
+            <Field label="Key takeaways">
+              <textarea
+                value={form.guideTakeaways}
+                onChange={(e) => setForm((f) => ({ ...f, guideTakeaways: e.target.value }))}
+                rows={10}
+                className="input"
+                placeholder="Top insights and lessons"
+              />
+            </Field>
+            <Field label="Memorable quotes">
+              <textarea
+                value={form.guideQuotes}
+                onChange={(e) => setForm((f) => ({ ...f, guideQuotes: e.target.value }))}
+                rows={8}
+                className="input"
+                placeholder="Direct quotes from the guest"
+              />
+            </Field>
+            <Field label="Action items">
+              <textarea
+                value={form.guideActionItems}
+                onChange={(e) => setForm((f) => ({ ...f, guideActionItems: e.target.value }))}
+                rows={10}
+                className="input"
+                placeholder="Practical checklist for listeners"
+              />
+            </Field>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Guest details" defaultOpen={false}>
             <Field label="Guest name">
               <input
                 type="text"
@@ -622,11 +646,11 @@ export default function EpisodeDetailPage() {
                 placeholder="Systeme.io contact ID"
               />
             </Field>
-          </Section>
+          </CollapsibleSection>
         </div>
 
         <div className="space-y-6">
-          <Section title="Settings">
+          <CollapsibleSection title="Publishing" defaultOpen={true}>
             <Field label="Crisis category">
               <select
                 value={form.crisisCategory}
@@ -721,7 +745,9 @@ export default function EpisodeDetailPage() {
                 Found in Captivate as the episode slug e.g. 0f6aa6a5-d1cb-4b66-86bd-9987f951da69
               </p>
             </Field>
+          </CollapsibleSection>
 
+          <CollapsibleSection title="Media" defaultOpen={false}>
             <Field label="YouTube video ID">
               <input
                 type="text"
@@ -839,7 +865,7 @@ export default function EpisodeDetailPage() {
                 </audio>
               </Field>
             )}
-          </Section>
+          </CollapsibleSection>
 
           <div className="flex flex-col gap-2">
             <button
@@ -855,39 +881,11 @@ export default function EpisodeDetailPage() {
             >
               Cancel
             </button>
+          </div>
 
+          <CollapsibleSection title="Sync & distribution" defaultOpen={false}>
             <button
-              onClick={handleGenerateGuide}
-              disabled={generatingGuide}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-            >
-              {generatingGuide ? "Generating..." : "Generate episode guide"}
-            </button>
-            <button
-              onClick={handleGeneratePdf}
-              disabled={generatingPdf || !form.guideBio}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-            >
-              {generatingPdf ? "Generating PDF..." : "Generate PDF"}
-            </button>
-            {form.guidePdfUrl && (
-              <a
-                href={form.guidePdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full block text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
-              >
-                View PDF →
-              </a>
-            )}
-            {generatingGuide && guideStatus && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
-                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
-                <p className="text-xs text-brand-purple font-medium">{guideStatus}</p>
-              </div>
-            )}
-
-            <button
+              type="button"
               onClick={handleResync}
               disabled={resyncing}
               className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
@@ -896,6 +894,7 @@ export default function EpisodeDetailPage() {
             </button>
 
             <button
+              type="button"
               onClick={handleSendToMake}
               disabled={testing}
               className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
@@ -905,6 +904,7 @@ export default function EpisodeDetailPage() {
 
             {episode.publishStatus === "approved" && (
               <button
+                type="button"
                 onClick={handlePublish}
                 disabled={publishing}
                 className="w-full px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
@@ -912,7 +912,7 @@ export default function EpisodeDetailPage() {
                 {publishing ? "Publishing..." : "Publish to YouTube"}
               </button>
             )}
-          </div>
+          </CollapsibleSection>
         </div>
       </div>
     </div>
@@ -930,6 +930,46 @@ function Section({
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-sm font-semibold text-gray-900 mb-4">{title}</h2>
       <div className="space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          {subtitle && (
+            <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+          )}
+        </div>
+        <span
+          className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

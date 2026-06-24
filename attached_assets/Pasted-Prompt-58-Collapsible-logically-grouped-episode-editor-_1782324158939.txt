@@ -1,0 +1,460 @@
+Prompt 58 — Collapsible, logically grouped episode editor
+Step 1 — Add a CollapsibleSection component
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+Find this exact string:
+tsxfunction Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h2 className="text-sm font-semibold text-gray-900 mb-4">{title}</h2>
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+}
+Replace with:
+tsxfunction Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h2 className="text-sm font-semibold text-gray-900 mb-4">{title}</h2>
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          {subtitle && (
+            <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+          )}
+        </div>
+        <span
+          className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+Step 2 — Replace the Episode Guide Content section with a collapsible one that contains its own generate buttons
+Find this exact string:
+tsx          {/* Episode Guide Content */}
+          {(form.guideBio || form.guideFrameworks || form.guideTakeaways || form.guideQuotes || form.guideActionItems) && (
+            <Section title="Episode guide content">
+              <p className="text-xs text-gray-500 -mt-2 mb-4">
+                Review and edit the guide content, then click Save changes. Once saved, click Generate PDF in the sidebar to create the downloadable PDF.
+              </p>
+              <Field label="Guest bio">
+                <textarea
+                  value={form.guideBio}
+                  onChange={(e) => setForm((f) => ({ ...f, guideBio: e.target.value }))}
+                  rows={6}
+                  className="input"
+                  placeholder="Guest bio for the episode guide"
+                />
+              </Field>
+              <Field label="Key frameworks">
+                <textarea
+                  value={form.guideFrameworks}
+                  onChange={(e) => setForm((f) => ({ ...f, guideFrameworks: e.target.value }))}
+                  rows={12}
+                  className="input"
+                  placeholder="Frameworks and methodologies from this episode"
+                />
+              </Field>
+              <Field label="Key takeaways">
+                <textarea
+                  value={form.guideTakeaways}
+                  onChange={(e) => setForm((f) => ({ ...f, guideTakeaways: e.target.value }))}
+                  rows={10}
+                  className="input"
+                  placeholder="Top insights and lessons"
+                />
+              </Field>
+              <Field label="Memorable quotes">
+                <textarea
+                  value={form.guideQuotes}
+                  onChange={(e) => setForm((f) => ({ ...f, guideQuotes: e.target.value }))}
+                  rows={8}
+                  className="input"
+                  placeholder="Direct quotes from the guest"
+                />
+              </Field>
+              <Field label="Action items">
+                <textarea
+                  value={form.guideActionItems}
+                  onChange={(e) => setForm((f) => ({ ...f, guideActionItems: e.target.value }))}
+                  rows={10}
+                  className="input"
+                  placeholder="Practical checklist for listeners"
+                />
+              </Field>
+              {form.guidePdfUrl && (
+                <Field label="Generated PDF">
+                  
+                    href={form.guidePdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-brand-purple hover:underline"
+                  >
+                    View PDF →
+                  </a>
+                </Field>
+              )}
+            </Section>
+          )}
+Replace with:
+tsx          {/* Episode Guide */}
+          <CollapsibleSection
+            title="Episode guide"
+            subtitle="Generate guide content from the transcript, then create the downloadable PDF"
+            defaultOpen={Boolean(form.guideBio || form.guideFrameworks || form.guideTakeaways)}
+          >
+            <div className="flex flex-col sm:flex-row gap-2 mb-2">
+              <button
+                type="button"
+                onClick={handleGenerateGuide}
+                disabled={generatingGuide}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {generatingGuide ? "Generating..." : "Generate episode guide"}
+              </button>
+              <button
+                type="button"
+                onClick={handleGeneratePdf}
+                disabled={generatingPdf || !form.guideBio}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {generatingPdf ? "Generating PDF..." : "Generate PDF"}
+              </button>
+            </div>
+
+            {generatingGuide && guideStatus && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
+                <p className="text-xs text-brand-purple font-medium">{guideStatus}</p>
+              </div>
+            )}
+
+            {form.guidePdfUrl && (
+              
+                href={form.guidePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                View PDF →
+              </a>
+            )}
+
+            <Field label="Guest bio">
+              <textarea
+                value={form.guideBio}
+                onChange={(e) => setForm((f) => ({ ...f, guideBio: e.target.value }))}
+                rows={6}
+                className="input"
+                placeholder="Guest bio for the episode guide"
+              />
+            </Field>
+            <Field label="Key frameworks">
+              <textarea
+                value={form.guideFrameworks}
+                onChange={(e) => setForm((f) => ({ ...f, guideFrameworks: e.target.value }))}
+                rows={12}
+                className="input"
+                placeholder="Frameworks and methodologies from this episode"
+              />
+            </Field>
+            <Field label="Key takeaways">
+              <textarea
+                value={form.guideTakeaways}
+                onChange={(e) => setForm((f) => ({ ...f, guideTakeaways: e.target.value }))}
+                rows={10}
+                className="input"
+                placeholder="Top insights and lessons"
+              />
+            </Field>
+            <Field label="Memorable quotes">
+              <textarea
+                value={form.guideQuotes}
+                onChange={(e) => setForm((f) => ({ ...f, guideQuotes: e.target.value }))}
+                rows={8}
+                className="input"
+                placeholder="Direct quotes from the guest"
+              />
+            </Field>
+            <Field label="Action items">
+              <textarea
+                value={form.guideActionItems}
+                onChange={(e) => setForm((f) => ({ ...f, guideActionItems: e.target.value }))}
+                rows={10}
+                className="input"
+                placeholder="Practical checklist for listeners"
+              />
+            </Field>
+          </CollapsibleSection>
+
+Step 3 — Make "Original content" and "Guest details" collapsible (collapsed by default), keep "AI-generated content" collapsible but open by default
+Find this exact string:
+tsx          <Section title="Original content (read only)">
+            <Field label="Original title">
+              <p className="text-sm text-gray-700">{episode.titleOriginal}</p>
+            </Field>
+            {episode.descriptionOriginal && (
+              <Field label="Original description">
+                <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-6">
+                  {episode.descriptionOriginal}
+                </p>
+              </Field>
+            )}
+          </Section>
+
+          <Section title="AI-generated content">
+            <div className="flex items-center justify-between mb-4">
+Replace with:
+tsx          <CollapsibleSection title="Original content (read only)" defaultOpen={false}>
+            <Field label="Original title">
+              <p className="text-sm text-gray-700">{episode.titleOriginal}</p>
+            </Field>
+            {episode.descriptionOriginal && (
+              <Field label="Original description">
+                <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-6">
+                  {episode.descriptionOriginal}
+                </p>
+              </Field>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection title="AI-generated content" defaultOpen={true}>
+            <div className="flex items-center justify-between mb-4">
+Find this exact string:
+tsx                placeholder="AI-generated website description"
+              />
+            </Field>
+          </Section>
+Replace with:
+tsx                placeholder="AI-generated website description"
+              />
+            </Field>
+          </CollapsibleSection>
+(Note: there are two near-identical closing points for sections in this file — the AI-generated content section closes right before the Episode Guide block you already replaced in Step 2. Apply this </Section> → </CollapsibleSection> change only to the one immediately preceding the Episode Guide CollapsibleSection — i.e., the textarea with placeholder "AI-generated website description".)
+Find this exact string:
+tsx          <Section title="Guest details">
+            <Field label="Guest name">
+Replace with:
+tsx          <CollapsibleSection title="Guest details" defaultOpen={false}>
+            <Field label="Guest name">
+Find this exact string:
+tsx              <input
+                type="text"
+                value={form.systemeContactId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, systemeContactId: e.target.value }))
+                }
+                className="input"
+                placeholder="Systeme.io contact ID"
+              />
+            </Field>
+          </Section>
+        </div>
+Replace with:
+tsx              <input
+                type="text"
+                value={form.systemeContactId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, systemeContactId: e.target.value }))
+                }
+                className="input"
+                placeholder="Systeme.io contact ID"
+              />
+            </Field>
+          </CollapsibleSection>
+        </div>
+
+Step 4 — Split the right-column "Settings" section into "Publishing" and "Media", both collapsible
+Find this exact string:
+tsx        <div className="space-y-6">
+          <Section title="Settings">
+            <Field label="Crisis category">
+Replace with:
+tsx        <div className="space-y-6">
+          <CollapsibleSection title="Publishing" defaultOpen={true}>
+            <Field label="Crisis category">
+Find this exact string:
+tsx              <p className="text-xs text-gray-400 mt-1">
+                Found in Captivate as the episode slug e.g. 0f6aa6a5-d1cb-4b66-86bd-9987f951da69
+              </p>
+            </Field>
+
+            <Field label="YouTube video ID">
+Replace with:
+tsx              <p className="text-xs text-gray-400 mt-1">
+                Found in Captivate as the episode slug e.g. 0f6aa6a5-d1cb-4b66-86bd-9987f951da69
+              </p>
+            </Field>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Media" defaultOpen={false}>
+            <Field label="YouTube video ID">
+Find this exact string:
+tsx            {episode.audioUrl && (
+              <Field label="Audio">
+                <audio controls className="w-full" src={episode.audioUrl}>
+                  Your browser does not support audio.
+                </audio>
+              </Field>
+            )}
+          </Section>
+
+          <div className="flex flex-col gap-2">
+Replace with:
+tsx            {episode.audioUrl && (
+              <Field label="Audio">
+                <audio controls className="w-full" src={episode.audioUrl}>
+                  Your browser does not support audio.
+                </audio>
+              </Field>
+            )}
+          </CollapsibleSection>
+
+          <div className="flex flex-col gap-2">
+
+Step 5 — Remove the now-duplicated guide buttons from the sidebar action stack and group remaining actions into "Sync & distribution"
+Find this exact string:
+tsx            <button
+              onClick={handleGenerateGuide}
+              disabled={generatingGuide}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingGuide ? "Generating..." : "Generate episode guide"}
+            </button>
+            <button
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf || !form.guideBio}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingPdf ? "Generating PDF..." : "Generate PDF"}
+            </button>
+            {form.guidePdfUrl && (
+              
+                href={form.guidePdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full block text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                View PDF →
+              </a>
+            )}
+            {generatingGuide && guideStatus && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
+                <p className="text-xs text-brand-purple font-medium">{guideStatus}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleResync}
+              disabled={resyncing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {resyncing ? "Syncing..." : "Re-sync from Captivate"}
+            </button>
+
+            <button
+              onClick={handleSendToMake}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send to Make.com"}
+            </button>
+
+            {episode.publishStatus === "approved" && (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                {publishing ? "Publishing..." : "Publish to YouTube"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+Replace with:
+tsx          </div>
+
+          <CollapsibleSection title="Sync & distribution" defaultOpen={false}>
+            <button
+              type="button"
+              onClick={handleResync}
+              disabled={resyncing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {resyncing ? "Syncing..." : "Re-sync from Captivate"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendToMake}
+              disabled={testing}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {testing ? "Sending..." : "Send to Make.com"}
+            </button>
+
+            {episode.publishStatus === "approved" && (
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={publishing}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 disabled:opacity-50 transition-colors"
+              >
+                {publishing ? "Publishing..." : "Publish to YouTube"}
+              </button>
+            )}
+          </CollapsibleSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
