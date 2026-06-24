@@ -1,0 +1,115 @@
+Prompt 61b — Wire public episodes page and homepage to live categories
+Step 1 — Update the public episodes listing page
+File to edit: artifacts/nextjs-app/app/episodes/page.tsx
+Find this exact string:
+tsximport { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+
+export const dynamic = 'force-dynamic';
+
+const CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship",
+  health: "Health & addiction",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  career: "Career & purpose",
+};
+
+const CATEGORIES = Object.entries(CATEGORY_LABELS);
+Replace with:
+tsximport { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import { getCategoryOptions } from "@/lib/categories";
+
+export const dynamic = 'force-dynamic';
+Find this exact string:
+tsxasync function getEpisodes(category?: string) {
+Replace with:
+tsxasync function getCategoryLabels() {
+  const categories = await getCategoryOptions();
+  return Object.fromEntries(categories.map((c) => [c.value, c.label]));
+}
+
+async function getEpisodes(category?: string) {
+Find this exact string:
+tsx  const category = searchParams.category;
+  const [siteConfig, episodes] = await Promise.all([
+    getSiteConfig(),
+    getEpisodes(category),
+  ]);
+Replace with:
+tsx  const category = searchParams.category;
+  const [siteConfig, episodes, categoryLabelsMap, categories] = await Promise.all([
+    getSiteConfig(),
+    getEpisodes(category),
+    getCategoryLabels(),
+    getCategoryOptions(),
+  ]);
+Find this exact string:
+tsx            {category ? ` in ${CATEGORY_LABELS[category] ?? category}` : ""}
+Replace with:
+tsx            {category ? ` in ${categoryLabelsMap[category] ?? category}` : ""}
+Find this exact string:
+tsx          {CATEGORIES.map(([value, label]) => (
+            <Link
+              key={value}
+              href={`/episodes?category=${value}`}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                category === value
+                  ? "bg-brand-purple text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+Replace with:
+tsx          {categories.map((c) => (
+            <Link
+              key={c.value}
+              href={`/episodes?category=${c.value}`}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                category === c.value
+                  ? "bg-brand-purple text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {c.label}
+            </Link>
+          ))}
+Find this exact string:
+tsx              const epCategory = ep.crisisCategory
+                ? CATEGORY_LABELS[ep.crisisCategory]
+                : null;
+Replace with:
+tsx              const epCategory = ep.crisisCategory
+                ? categoryLabelsMap[ep.crisisCategory]
+                : null;
+
+Step 2 — Update the homepage
+File to edit: artifacts/nextjs-app/app/page.tsx
+Find this exact string:
+tsxconst CATEGORY_LABELS: Record<string, string> = {
+  grief: "Grief & loss",
+  relationship: "Relationship",
+  health: "Health & addiction",
+  financial: "Financial",
+  spiritual: "Spiritual",
+  career: "Career & purpose",
+};
+Replace with:
+tsximport { getCategoryOptions } from "@/lib/categories";
+
+async function getCategoryLabels() {
+  const categories = await getCategoryOptions();
+  return Object.fromEntries(categories.map((c) => [c.value, c.label]));
+}
+(If app/page.tsx already has other import statements at the very top of the file, move the import { getCategoryOptions } from "@/lib/categories"; line up to sit alongside them instead of leaving it here — imports must be at the top of the file in valid TypeScript/Next.js. Keep the getCategoryLabels function definition in this location.)
+Now find wherever app/page.tsx calls the component that uses CATEGORY_LABELS[episode.crisisCategory] (around line 127) — this is likely inside an EpisodeCard-style helper function or inline in the page component. Find this exact string:
+tsx  const category = episode.crisisCategory
+    ? CATEGORY_LABELS[episode.crisisCategory]
+    : null;
+This line is inside a function that renders an episode card. That function needs access to the category labels map. Find the function signature that contains this line — it will look something like function EpisodeCard({ episode, ... }) { — and report back its exact signature and where it's called from (i.e. paste the function declaration line and the line(s) where this function is invoked) before making further changes, since the right fix depends on whether this is a synchronous helper or can be made async.

@@ -2,17 +2,14 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import HeroPhoto from "@/components/HeroPhoto";
+import { getCategoryOptions } from "@/lib/categories";
 
 export const dynamic = 'force-dynamic';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "Grief & loss",
-  relationship: "Relationship",
-  health: "Health & addiction",
-  financial: "Financial",
-  spiritual: "Spiritual",
-  career: "Career & purpose",
-};
+async function getCategoryLabels() {
+  const categories = await getCategoryOptions();
+  return Object.fromEntries(categories.map((c) => [c.value, c.label]));
+}
 
 const PLATFORMS = [
   {
@@ -100,6 +97,7 @@ function EpisodeCard({
   episode,
   large = false,
   imageMode = "youtube_thumbnail",
+  categoryLabels,
 }: {
   episode: {
     id: string;
@@ -118,13 +116,14 @@ function EpisodeCard({
   };
   large?: boolean;
   imageMode?: "youtube_thumbnail" | "cover_art";
+  categoryLabels: Record<string, string>;
 }) {
   const title = episode.titleYoutube ?? episode.titleOriginal;
   const episodeHref = episode.slug
     ? `/episodes/${episode.slug}`
     : `/episodes/${episode.id}`;
   const category = episode.crisisCategory
-    ? CATEGORY_LABELS[episode.crisisCategory]
+    ? categoryLabels[episode.crisisCategory]
     : null;
   const duration = formatDuration(episode.durationSeconds);
   const displayImage = large
@@ -223,7 +222,10 @@ function EpisodeCard({
 
 export default async function HomePage() {
   const { latest, featured } = await getHomeData();
-  const siteConfig = await getSiteConfig();
+  const [siteConfig, categoryLabels] = await Promise.all([
+    getSiteConfig(),
+    getCategoryLabels(),
+  ]);
   const heroEpisode = featured[0] ?? latest[0] ?? null;
 
   return (
@@ -293,7 +295,7 @@ export default async function HomePage() {
                 Latest episode
               </h2>
             </div>
-            <EpisodeCard episode={heroEpisode} large />
+            <EpisodeCard episode={heroEpisode} large categoryLabels={categoryLabels} />
           </section>
         )}
 
@@ -313,7 +315,7 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {latest.slice(1, 7).map((ep) => (
-                <EpisodeCard key={ep.id} episode={ep} imageMode={siteConfig.episodeCardImage} />
+                <EpisodeCard key={ep.id} episode={ep} imageMode={siteConfig.episodeCardImage} categoryLabels={categoryLabels} />
               ))}
             </div>
             <div className="text-center mt-8">

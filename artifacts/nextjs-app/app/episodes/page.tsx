@@ -1,19 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
+import { getCategoryOptions } from "@/lib/categories";
 
 export const dynamic = 'force-dynamic';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  grief: "Grief & loss",
-  relationship: "Relationship",
-  health: "Health & addiction",
-  financial: "Financial",
-  spiritual: "Spiritual",
-  career: "Career & purpose",
-};
-
-const CATEGORIES = Object.entries(CATEGORY_LABELS);
+async function getCategoryLabels() {
+  const categories = await getCategoryOptions();
+  return Object.fromEntries(categories.map((c) => [c.value, c.label]));
+}
 
 async function getEpisodes(category?: string) {
   return prisma.episode.findMany({
@@ -64,9 +59,11 @@ export default async function EpisodesPage({
   searchParams: { category?: string };
 }) {
   const category = searchParams.category;
-  const [siteConfig, episodes] = await Promise.all([
+  const [siteConfig, episodes, categoryLabelsMap, categories] = await Promise.all([
     getSiteConfig(),
     getEpisodes(category),
+    getCategoryLabels(),
+    getCategoryOptions(),
   ]);
 
   return (
@@ -80,7 +77,7 @@ export default async function EpisodesPage({
           </h1>
           <p className="text-gray-300 text-sm">
             {episodes.length} episode{episodes.length !== 1 ? "s" : ""}
-            {category ? ` in ${CATEGORY_LABELS[category] ?? category}` : ""}
+            {category ? ` in ${categoryLabelsMap[category] ?? category}` : ""}
           </p>
         </div>
       </div>
@@ -98,17 +95,17 @@ export default async function EpisodesPage({
           >
             All
           </Link>
-          {CATEGORIES.map(([value, label]) => (
+          {categories.map((c) => (
             <Link
-              key={value}
-              href={`/episodes?category=${value}`}
+              key={c.value}
+              href={`/episodes?category=${c.value}`}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                category === value
+                category === c.value
                   ? "bg-brand-purple text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {label}
+              {c.label}
             </Link>
           ))}
         </div>
@@ -130,7 +127,7 @@ export default async function EpisodesPage({
             {episodes.map((ep) => {
               const title = ep.titleYoutube ?? ep.titleOriginal;
               const epCategory = ep.crisisCategory
-                ? CATEGORY_LABELS[ep.crisisCategory]
+                ? categoryLabelsMap[ep.crisisCategory]
                 : null;
               const duration = formatDuration(ep.durationSeconds);
               const displayImage =
