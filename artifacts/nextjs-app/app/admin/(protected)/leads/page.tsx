@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+interface GuideDownloadEntry {
+  id: string;
+  episodeId: string;
+  episodeTitle: string;
+  createdAt: string;
+}
+
 interface Lead {
   id: string;
   firstName: string | null;
@@ -14,6 +21,12 @@ interface Lead {
   emailSynced: boolean;
   createdAt: string;
   sourceEpisode: { id: string; titleOriginal: string } | null;
+  guideDownloads: GuideDownloadEntry[];
+}
+
+interface GuideOption {
+  id: string;
+  title: string;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -44,6 +57,8 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [resultFilter, setResultFilter] = useState("");
+  const [guideFilter, setGuideFilter] = useState("");
+  const [guideOptions, setGuideOptions] = useState<GuideOption[]>([]);
   const [selected, setSelected] = useState<Lead | null>(null);
 
   async function loadLeads() {
@@ -51,6 +66,7 @@ export default function LeadsPage() {
     const params = new URLSearchParams();
     if (categoryFilter) params.set("category", categoryFilter);
     if (resultFilter) params.set("resultType", resultFilter);
+    if (guideFilter) params.set("guideEpisodeId", guideFilter);
     const res = await fetch(`/api/admin/leads?${params}`);
     const data = await res.json();
     setLeads(data.leads ?? []);
@@ -58,18 +74,29 @@ export default function LeadsPage() {
     setLoading(false);
   }
 
+  async function loadGuideOptions() {
+    const res = await fetch(`/api/admin/guides`);
+    const data = await res.json();
+    setGuideOptions(data.guides ?? []);
+  }
+
   function handleExport() {
     const params = new URLSearchParams();
     if (categoryFilter) params.set("category", categoryFilter);
     if (resultFilter) params.set("resultType", resultFilter);
+    if (guideFilter) params.set("guideEpisodeId", guideFilter);
     params.set("format", "csv");
     window.open(`/api/admin/leads?${params}`, "_blank");
   }
 
   useEffect(() => {
+    loadGuideOptions();
+  }, []);
+
+  useEffect(() => {
     loadLeads();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryFilter, resultFilter]);
+  }, [categoryFilter, resultFilter, guideFilter]);
 
   return (
     <div>
@@ -108,6 +135,17 @@ export default function LeadsPage() {
           <option value="coach_referral">Coach referral</option>
           <option value="resource">Resource</option>
           <option value="nurture">Nurture</option>
+        </select>
+
+        <select
+          value={guideFilter}
+          onChange={(e) => setGuideFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+        >
+          <option value="">All guides</option>
+          {guideOptions.map((g) => (
+            <option key={g.id} value={g.id}>{g.title}</option>
+          ))}
         </select>
       </div>
 
@@ -227,6 +265,24 @@ export default function LeadsPage() {
                   value={new Date(selected.createdAt).toLocaleString()}
                 />
               </div>
+
+              {selected.guideDownloads.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-500 mb-2">
+                    Guide downloads ({selected.guideDownloads.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selected.guideDownloads.map((d) => (
+                      <div key={d.id} className="flex items-start justify-between gap-2">
+                        <span className="text-xs text-gray-900">{d.episodeTitle}</span>
+                        <span className="text-xs text-gray-400 shrink-0">
+                          {new Date(d.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <a

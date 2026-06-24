@@ -12,14 +12,26 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
   const resultType = searchParams.get("resultType");
+  const guideEpisodeId = searchParams.get("guideEpisodeId");
   const page = parseInt(searchParams.get("page") ?? "1");
   const format = searchParams.get("format");
   const limit = 50;
   const skip = (page - 1) * limit;
 
+  let emailsForGuide: string[] | null = null;
+  if (guideEpisodeId) {
+    const downloads = await prisma.guideDownload.findMany({
+      where: { episodeId: guideEpisodeId },
+      select: { email: true },
+      distinct: ["email"],
+    });
+    emailsForGuide = downloads.map((d) => d.email);
+  }
+
   const where = {
     ...(category ? { crisisCategory: category } : {}),
     ...(resultType ? { resultType } : {}),
+    ...(emailsForGuide ? { email: { in: emailsForGuide } } : {}),
   };
 
   if (format === "csv") {
@@ -28,6 +40,19 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       include: { sourceEpisode: { select: { titleOriginal: true } } },
     });
+
+    const emails = leads.map((l) => l.email);
+    const allDownloads = await prisma.guideDownload.findMany({
+      where: { email: { in: emails } },
+      include: { episode: { select: { titleOriginal: true, titleYoutube: true } } },
+    });
+    const downloadsByEmail = new Map<string, string[]>();
+    for (const d of allDownloads) {
+      const title = d.episode.titleYoutube ?? d.episode.titleOriginal;
+      const list = downloadsByEmail.get(d.email) ?? [];
+      list.push(title);
+      downloadsByEmail.set(d.email, list);
+    }
 
     const rows = [
       [
@@ -41,6 +66,7 @@ export async function GET(req: NextRequest) {
         "Result type",
         "Email synced",
         "Source episode",
+        "Guides downloaded",
       ].join(","),
       ...leads.map((l) =>
         [
@@ -54,6 +80,7 @@ export async function GET(req: NextRequest) {
           l.resultType ?? "",
           l.emailSynced ? "Yes" : "No",
           l.sourceEpisode?.titleOriginal ?? "",
+          (downloadsByEmail.get(l.email) ?? []).join("; "),
         ]
           .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(",")
@@ -81,5 +108,31 @@ export async function GET(req: NextRequest) {
     prisma.lead.count({ where }),
   ]);
 
-  return NextResponse.json({ leads, total, page, limit });
+  const leadEmails = leads.map((l) => l.email);
+  const guideDownloads = leadEmails.length
+    ? await prisma.guideDownload.findMany({
+        where: { email: { in: leadEmails } },
+        orderBy: { createdAt: "desc" },
+        include: { episode: { select: { id: true, titleOriginal: true, titleYoutube: true } } },
+      })
+    : [];
+
+  const downloadsByEmail = new Map<string, typeof guideDownloads>();
+  for (const d of guideDownloads) {
+    const list = downloadsByEmail.get(d.email) ?? [];
+    list.push(d);
+    downloadsByEmail.set(d.email, list);
+  }
+
+  const leadsWithDownloads = leads.map((lead) => ({
+    ...lead,
+    guideDownloads: (downloadsByEmail.get(lead.email) ?? []).map((d) => ({
+      id: d.id,
+      episodeId: d.episode.id,
+      episodeTitle: d.episode.titleYoutube ?? d.episode.titleOriginal,
+      createdAt: d.createdAt,
+    })),
+  }));
+
+  return NextResponse.json({ leads: leadsWithDownloads, total, page, limit });
 }

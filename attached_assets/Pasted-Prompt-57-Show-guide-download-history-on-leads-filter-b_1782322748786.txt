@@ -1,0 +1,410 @@
+Prompt 57 — Show guide download history on leads + filter by guide
+Step 1 — Update the leads API route
+File to edit: artifacts/nextjs-app/app/api/admin/leads/route.ts
+Find this exact string:
+ts  const { searchParams } = new URL(req.url);
+  const category = searchParams.get("category");
+  const resultType = searchParams.get("resultType");
+  const page = parseInt(searchParams.get("page") ?? "1");
+  const format = searchParams.get("format");
+  const limit = 50;
+  const skip = (page - 1) * limit;
+
+  const where = {
+    ...(category ? { crisisCategory: category } : {}),
+    ...(resultType ? { resultType } : {}),
+  };
+Replace with:
+ts  const { searchParams } = new URL(req.url);
+  const category = searchParams.get("category");
+  const resultType = searchParams.get("resultType");
+  const guideEpisodeId = searchParams.get("guideEpisodeId");
+  const page = parseInt(searchParams.get("page") ?? "1");
+  const format = searchParams.get("format");
+  const limit = 50;
+  const skip = (page - 1) * limit;
+
+  let emailsForGuide: string[] | null = null;
+  if (guideEpisodeId) {
+    const downloads = await prisma.guideDownload.findMany({
+      where: { episodeId: guideEpisodeId },
+      select: { email: true },
+      distinct: ["email"],
+    });
+    emailsForGuide = downloads.map((d) => d.email);
+  }
+
+  const where = {
+    ...(category ? { crisisCategory: category } : {}),
+    ...(resultType ? { resultType } : {}),
+    ...(emailsForGuide ? { email: { in: emailsForGuide } } : {}),
+  };
+Find this exact string:
+ts  if (format === "csv") {
+    const leads = await prisma.lead.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: { sourceEpisode: { select: { titleOriginal: true } } },
+    });
+
+    const rows = [
+      [
+        "Date",
+        "First name",
+        "Email",
+        "Crisis category",
+        "Duration",
+        "Urgency",
+        "Score",
+        "Result type",
+        "Email synced",
+        "Source episode",
+      ].join(","),
+      ...leads.map((l) =>
+        [
+          new Date(l.createdAt).toLocaleDateString(),
+          l.firstName ?? "",
+          l.email,
+          l.crisisCategory,
+          l.crisisDuration ?? "",
+          l.urgency ?? "",
+          l.score ?? "",
+          l.resultType ?? "",
+          l.emailSynced ? "Yes" : "No",
+          l.sourceEpisode?.titleOriginal ?? "",
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(",")
+      ),
+    ].join("\n");
+Replace with:
+ts  if (format === "csv") {
+    const leads = await prisma.lead.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: { sourceEpisode: { select: { titleOriginal: true } } },
+    });
+
+    const emails = leads.map((l) => l.email);
+    const allDownloads = await prisma.guideDownload.findMany({
+      where: { email: { in: emails } },
+      include: { episode: { select: { titleOriginal: true, titleYoutube: true } } },
+    });
+    const downloadsByEmail = new Map<string, string[]>();
+    for (const d of allDownloads) {
+      const title = d.episode.titleYoutube ?? d.episode.titleOriginal;
+      const list = downloadsByEmail.get(d.email) ?? [];
+      list.push(title);
+      downloadsByEmail.set(d.email, list);
+    }
+
+    const rows = [
+      [
+        "Date",
+        "First name",
+        "Email",
+        "Crisis category",
+        "Duration",
+        "Urgency",
+        "Score",
+        "Result type",
+        "Email synced",
+        "Source episode",
+        "Guides downloaded",
+      ].join(","),
+      ...leads.map((l) =>
+        [
+          new Date(l.createdAt).toLocaleDateString(),
+          l.firstName ?? "",
+          l.email,
+          l.crisisCategory,
+          l.crisisDuration ?? "",
+          l.urgency ?? "",
+          l.score ?? "",
+          l.resultType ?? "",
+          l.emailSynced ? "Yes" : "No",
+          l.sourceEpisode?.titleOriginal ?? "",
+          (downloadsByEmail.get(l.email) ?? []).join("; "),
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(",")
+      ),
+    ].join("\n");
+Find this exact string:
+ts  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        sourceEpisode: { select: { id: true, titleOriginal: true } },
+      },
+    }),
+    prisma.lead.count({ where }),
+  ]);
+
+  return NextResponse.json({ leads, total, page, limit });
+}
+Replace with:
+ts  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        sourceEpisode: { select: { id: true, titleOriginal: true } },
+      },
+    }),
+    prisma.lead.count({ where }),
+  ]);
+
+  const leadEmails = leads.map((l) => l.email);
+  const guideDownloads = leadEmails.length
+    ? await prisma.guideDownload.findMany({
+        where: { email: { in: leadEmails } },
+        orderBy: { createdAt: "desc" },
+        include: { episode: { select: { id: true, titleOriginal: true, titleYoutube: true } } },
+      })
+    : [];
+
+  const downloadsByEmail = new Map<string, typeof guideDownloads>();
+  for (const d of guideDownloads) {
+    const list = downloadsByEmail.get(d.email) ?? [];
+    list.push(d);
+    downloadsByEmail.set(d.email, list);
+  }
+
+  const leadsWithDownloads = leads.map((lead) => ({
+    ...lead,
+    guideDownloads: (downloadsByEmail.get(lead.email) ?? []).map((d) => ({
+      id: d.id,
+      episodeId: d.episode.id,
+      episodeTitle: d.episode.titleYoutube ?? d.episode.titleOriginal,
+      createdAt: d.createdAt,
+    })),
+  }));
+
+  return NextResponse.json({ leads: leadsWithDownloads, total, page, limit });
+}
+
+Step 2 — Create an endpoint to list episodes with guides (for the filter dropdown)
+Create artifacts/nextjs-app/app/api/admin/guides/route.ts:
+tsimport { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const episodes = await prisma.episode.findMany({
+    where: { guidePdfUrl: { not: null } },
+    select: { id: true, titleOriginal: true, titleYoutube: true },
+    orderBy: { titleOriginal: "asc" },
+  });
+
+  return NextResponse.json({
+    guides: episodes.map((e) => ({
+      id: e.id,
+      title: e.titleYoutube ?? e.titleOriginal,
+    })),
+  });
+}
+
+Step 3 — Update the leads dashboard UI
+File to edit: artifacts/nextjs-app/app/admin/(protected)/leads/page.tsx
+Find this exact string:
+tsxinterface Lead {
+  id: string;
+  firstName: string | null;
+  email: string;
+  crisisCategory: string;
+  crisisDuration: string | null;
+  urgency: string | null;
+  score: number | null;
+  resultType: string | null;
+  emailSynced: boolean;
+  createdAt: string;
+  sourceEpisode: { id: string; titleOriginal: string } | null;
+}
+Replace with:
+tsxinterface GuideDownloadEntry {
+  id: string;
+  episodeId: string;
+  episodeTitle: string;
+  createdAt: string;
+}
+
+interface Lead {
+  id: string;
+  firstName: string | null;
+  email: string;
+  crisisCategory: string;
+  crisisDuration: string | null;
+  urgency: string | null;
+  score: number | null;
+  resultType: string | null;
+  emailSynced: boolean;
+  createdAt: string;
+  sourceEpisode: { id: string; titleOriginal: string } | null;
+  guideDownloads: GuideDownloadEntry[];
+}
+
+interface GuideOption {
+  id: string;
+  title: string;
+}
+Find this exact string:
+tsx  const [categoryFilter, setCategoryFilter] = useState("");
+  const [resultFilter, setResultFilter] = useState("");
+  const [selected, setSelected] = useState<Lead | null>(null);
+
+  async function loadLeads() {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (resultFilter) params.set("resultType", resultFilter);
+    const res = await fetch(`/api/admin/leads?${params}`);
+    const data = await res.json();
+    setLeads(data.leads ?? []);
+    setTotal(data.total ?? 0);
+    setLoading(false);
+  }
+
+  function handleExport() {
+    const params = new URLSearchParams();
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (resultFilter) params.set("resultType", resultFilter);
+    params.set("format", "csv");
+    window.open(`/api/admin/leads?${params}`, "_blank");
+  }
+
+  useEffect(() => {
+    loadLeads();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, resultFilter]);
+Replace with:
+tsx  const [categoryFilter, setCategoryFilter] = useState("");
+  const [resultFilter, setResultFilter] = useState("");
+  const [guideFilter, setGuideFilter] = useState("");
+  const [guideOptions, setGuideOptions] = useState<GuideOption[]>([]);
+  const [selected, setSelected] = useState<Lead | null>(null);
+
+  async function loadLeads() {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (resultFilter) params.set("resultType", resultFilter);
+    if (guideFilter) params.set("guideEpisodeId", guideFilter);
+    const res = await fetch(`/api/admin/leads?${params}`);
+    const data = await res.json();
+    setLeads(data.leads ?? []);
+    setTotal(data.total ?? 0);
+    setLoading(false);
+  }
+
+  async function loadGuideOptions() {
+    const res = await fetch(`/api/admin/guides`);
+    const data = await res.json();
+    setGuideOptions(data.guides ?? []);
+  }
+
+  function handleExport() {
+    const params = new URLSearchParams();
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (resultFilter) params.set("resultType", resultFilter);
+    if (guideFilter) params.set("guideEpisodeId", guideFilter);
+    params.set("format", "csv");
+    window.open(`/api/admin/leads?${params}`, "_blank");
+  }
+
+  useEffect(() => {
+    loadGuideOptions();
+  }, []);
+
+  useEffect(() => {
+    loadLeads();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, resultFilter, guideFilter]);
+Find this exact string:
+tsx        <select
+          value={resultFilter}
+          onChange={(e) => setResultFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+        >
+          <option value="">All result types</option>
+          <option value="coach_referral">Coach referral</option>
+          <option value="resource">Resource</option>
+          <option value="nurture">Nurture</option>
+        </select>
+      </div>
+Replace with:
+tsx        <select
+          value={resultFilter}
+          onChange={(e) => setResultFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+        >
+          <option value="">All result types</option>
+          <option value="coach_referral">Coach referral</option>
+          <option value="resource">Resource</option>
+          <option value="nurture">Nurture</option>
+        </select>
+
+        <select
+          value={guideFilter}
+          onChange={(e) => setGuideFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+        >
+          <option value="">All guides</option>
+          {guideOptions.map((g) => (
+            <option key={g.id} value={g.id}>{g.title}</option>
+          ))}
+        </select>
+      </div>
+Find this exact string:
+tsx                <DetailRow
+                  label="Source episode"
+                  value={selected.sourceEpisode?.titleOriginal ?? "Direct"}
+                />
+                <DetailRow
+                  label="Date"
+                  value={new Date(selected.createdAt).toLocaleString()}
+                />
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-100">
+Replace with:
+tsx                <DetailRow
+                  label="Source episode"
+                  value={selected.sourceEpisode?.titleOriginal ?? "Direct"}
+                />
+                <DetailRow
+                  label="Date"
+                  value={new Date(selected.createdAt).toLocaleString()}
+                />
+              </div>
+
+              {selected.guideDownloads.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-500 mb-2">
+                    Guide downloads ({selected.guideDownloads.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selected.guideDownloads.map((d) => (
+                      <div key={d.id} className="flex items-start justify-between gap-2">
+                        <span className="text-xs text-gray-900">{d.episodeTitle}</span>
+                        <span className="text-xs text-gray-400 shrink-0">
+                          {new Date(d.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t border-gray-100">
