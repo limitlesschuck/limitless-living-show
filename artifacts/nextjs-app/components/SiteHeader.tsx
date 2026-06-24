@@ -16,6 +16,12 @@ export default function SiteHeader() {
           >
             Episodes
           </Link>
+          <Link
+            href="/guides"
+            className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:block"
+          >
+            Guides
+          </Link>
           <a
             href="https://www.youtube.com/@limitlesslivingpodcast"
             target="_blank"
