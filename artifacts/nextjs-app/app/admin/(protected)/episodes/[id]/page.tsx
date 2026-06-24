@@ -33,21 +33,18 @@ interface Episode {
   captivateId: string | null;
 }
 
-const CATEGORIES = [
-  { value: "grief", label: "Grief & loss" },
-  { value: "relationship", label: "Relationship & divorce" },
-  { value: "health", label: "Health & addiction" },
-  { value: "financial", label: "Financial hardship" },
-  { value: "spiritual", label: "Spiritual awakening" },
-  { value: "career", label: "Career & purpose" },
-];
-
 const STATUSES = ["draft", "ai_generated", "approved", "published"];
+
+interface CategoryOption {
+  value: string;
+  label: string;
+}
 
 export default function EpisodeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [episode, setEpisode] = useState<Episode | null>(null);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -352,6 +349,9 @@ export default function EpisodeDetailPage() {
 
   useEffect(() => {
     loadEpisode();
+    fetch("/api/admin/categories")
+      .then((r) => r.json())
+      .then((data) => setCategories(data.categories ?? []));
   }, [id]);
 
   if (loading) {
@@ -660,7 +660,7 @@ export default function EpisodeDetailPage() {
                 className="input"
               >
                 <option value="">— Select category —</option>
-                {CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
