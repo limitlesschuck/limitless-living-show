@@ -70,7 +70,6 @@ model Episode {
   id                    String    @id @default(cuid())
   slug                  String?   @unique
   captivateId           String?   @unique
-  captivatePlayerId     String?
   youtubeId             String?
   titleOriginal         String
   titleYoutube          String?

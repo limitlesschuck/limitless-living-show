@@ -1,0 +1,110 @@
+Prompt 55 — Consolidate Captivate ID into a single field
+Step 1 — Remove captivatePlayerId from the Prisma schema
+File to edit: artifacts/nextjs-app/prisma/schema.prisma
+Find this exact string:
+prisma  captivateId           String?   @unique
+  captivatePlayerId     String?
+Replace with:
+prisma  captivateId           String?   @unique
+
+Step 2 — Update the admin edit page to use captivateId
+File to edit: artifacts/nextjs-app/app/admin/(protected)/episodes/[id]/page.tsx
+Find this exact string:
+tsx  captivatePublishedAt: string | null;
+  slug: string | null;
+  captivatePlayerId: string | null;
+}
+Replace with:
+tsx  captivatePublishedAt: string | null;
+  slug: string | null;
+  captivateId: string | null;
+}
+Find this exact string:
+tsx    slug: "",
+    captivatePlayerId: "",
+    guideBio: "",
+Replace with:
+tsx    slug: "",
+    captivateId: "",
+    guideBio: "",
+Find this exact string:
+tsx      slug: data.slug ?? "",
+      captivatePlayerId: data.captivatePlayerId ?? "",
+      guideBio: data.guideBio ?? "",
+Replace with:
+tsx      slug: data.slug ?? "",
+      captivateId: data.captivateId ?? "",
+      guideBio: data.guideBio ?? "",
+Find this exact string:
+tsx            <Field label="Captivate player ID">
+              <input
+                type="text"
+                value={form.captivatePlayerId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, captivatePlayerId: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste from Captivate episode editor URL"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Found in Captivate as the episode slug e.g. 0f6aa6a5-d1cb-4b66-86bd-9987f951da69
+              </p>
+            </Field>
+Replace with:
+tsx            <Field label="Captivate ID">
+              <input
+                type="text"
+                value={form.captivateId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, captivateId: e.target.value }))
+                }
+                className="input"
+                placeholder="Paste from Captivate episode editor URL"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Found in Captivate as the episode slug e.g. 0f6aa6a5-d1cb-4b66-86bd-9987f951da69
+              </p>
+            </Field>
+
+Step 3 — Update the API route's allowed fields list
+File to edit: artifacts/nextjs-app/app/api/admin/episodes/[id]/route.ts
+Find this exact string:
+ts    "youtubeThumbnailUrl",
+    "captivatePlayerId",
+    "guideBio",
+Replace with:
+ts    "youtubeThumbnailUrl",
+    "captivateId",
+    "guideBio",
+
+Step 4 — Simplify the public episode page embed logic
+File to edit: artifacts/nextjs-app/app/episodes/[id]/page.tsx
+Find this exact string:
+tsx        {(episode.captivatePlayerId ?? episode.captivateId) && (
+          <div className="mb-8" style={{ width: "100%", height: "200px", borderRadius: "6px", overflow: "hidden" }}>
+            <iframe
+              style={{ width: "100%", height: "200px" }}
+              frameBorder="no"
+              scrolling="no"
+              allow="clipboard-write"
+              src={`https://player.captivate.fm/episode/${episode.captivatePlayerId ?? episode.captivateId}/`}
+            />
+          </div>
+        )}
+Replace with:
+tsx        {episode.captivateId && (
+          <div className="mb-8" style={{ width: "100%", height: "200px", borderRadius: "6px", overflow: "hidden" }}>
+            <iframe
+              style={{ width: "100%", height: "200px" }}
+              frameBorder="no"
+              scrolling="no"
+              allow="clipboard-write"
+              src={`https://player.captivate.fm/episode/${episode.captivateId}/`}
+            />
+          </div>
+        )}
+
+Step 5 — Push the schema change to the dev database
+Run this in the Replit shell:
+bashcd /home/runner/workspace/artifacts/nextjs-app && npx prisma db push
+This will drop the now-unused captivatePlayerId column from your dev database.

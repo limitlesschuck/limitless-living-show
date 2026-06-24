@@ -138,14 +138,14 @@ export default async function EpisodeDetailPage({
         ) : null}
 
         {/* Captivate embedded player */}
-        {(episode.captivatePlayerId ?? episode.captivateId) && (
+        {episode.captivateId && (
           <div className="mb-8" style={{ width: "100%", height: "200px", borderRadius: "6px", overflow: "hidden" }}>
             <iframe
               style={{ width: "100%", height: "200px" }}
               frameBorder="no"
               scrolling="no"
               allow="clipboard-write"
-              src={`https://player.captivate.fm/episode/${episode.captivatePlayerId ?? episode.captivateId}/`}
+              src={`https://player.captivate.fm/episode/${episode.captivateId}/`}
             />
           </div>
         )}

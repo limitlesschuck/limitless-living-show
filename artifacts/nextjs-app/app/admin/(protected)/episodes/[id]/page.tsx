@@ -30,7 +30,7 @@ interface Episode {
   youtubeThumbnailUrl: string | null;
   captivatePublishedAt: string | null;
   slug: string | null;
-  captivatePlayerId: string | null;
+  captivateId: string | null;
 }
 
 const CATEGORIES = [
@@ -85,7 +85,7 @@ export default function EpisodeDetailPage() {
     swipeCopy: "",
     systemeContactId: "",
     slug: "",
-    captivatePlayerId: "",
+    captivateId: "",
     guideBio: "",
     guideFrameworks: "",
     guideTakeaways: "",
@@ -117,7 +117,7 @@ export default function EpisodeDetailPage() {
       swipeCopy: data.swipeCopy ?? "",
       systemeContactId: data.systemeContactId ?? "",
       slug: data.slug ?? "",
-      captivatePlayerId: data.captivatePlayerId ?? "",
+      captivateId: data.captivateId ?? "",
       guideBio: data.guideBio ?? "",
       guideFrameworks: data.guideFrameworks ?? "",
       guideTakeaways: data.guideTakeaways ?? "",
@@ -707,12 +707,12 @@ export default function EpisodeDetailPage() {
               )}
             </Field>
 
-            <Field label="Captivate player ID">
+            <Field label="Captivate ID">
               <input
                 type="text"
-                value={form.captivatePlayerId}
+                value={form.captivateId}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, captivatePlayerId: e.target.value }))
+                  setForm((f) => ({ ...f, captivateId: e.target.value }))
                 }
                 className="input"
                 placeholder="Paste from Captivate episode editor URL"

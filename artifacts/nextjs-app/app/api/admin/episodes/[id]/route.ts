@@ -58,7 +58,7 @@ export async function PATCH(
     "mp4Url",
     "coverArtUrl",
     "youtubeThumbnailUrl",
-    "captivatePlayerId",
+    "captivateId",
     "guideBio",
     "guideFrameworks",
     "guideTakeaways",
