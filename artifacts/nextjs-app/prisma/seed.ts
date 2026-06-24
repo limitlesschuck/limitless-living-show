@@ -159,12 +159,12 @@ async function main() {
               text: "What best describes what you're going through right now?",
               subtext: "Choose the option that feels closest to your situation.",
               options: [
-                { value: "grief", label: "Grief or loss", emoji: "💙" },
-                { value: "relationship", label: "Relationship or divorce", emoji: "💔" },
-                { value: "health", label: "Health or addiction", emoji: "🌿" },
-                { value: "financial", label: "Financial hardship", emoji: "💪" },
-                { value: "spiritual", label: "Spiritual awakening", emoji: "✨" },
-                { value: "career", label: "Career or purpose", emoji: "🎯" }
+                { value: "grief", label: "Grief & loss", emoji: "💙", prose: "grief and loss" },
+                { value: "relationship", label: "Relationship & divorce", emoji: "💔", prose: "relationship challenges" },
+                { value: "health", label: "Health & addiction", emoji: "🌿", prose: "health and addiction" },
+                { value: "financial", label: "Financial hardship", emoji: "💪", prose: "financial hardship" },
+                { value: "spiritual", label: "Spiritual awakening", emoji: "✨", prose: "spiritual awakening" },
+                { value: "career", label: "Career & purpose", emoji: "🎯", prose: "career and purpose" }
               ],
               storeAs: "crisisCategory"
             },
