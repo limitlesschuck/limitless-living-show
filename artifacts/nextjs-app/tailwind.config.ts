@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import showConfig from "./show.config";
 
 const config: Config = {
   content: [
@@ -9,13 +10,13 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          purple: "#2D1B69",
-          "purple-dark": "#1A0F3E",
-          "purple-mid": "#3D2780",
-          "purple-light": "#4D35A0",
-          gold: "#F0A500",
-          "gold-light": "#F5C842",
-          "gold-dark": "#C8860A",
+          purple: showConfig.brand.purple,
+          "purple-dark": showConfig.brand.purpleDark,
+          "purple-mid": showConfig.brand.purpleMid,
+          "purple-light": showConfig.brand.purpleLight,
+          gold: showConfig.brand.gold,
+          "gold-light": showConfig.brand.goldLight,
+          "gold-dark": showConfig.brand.goldDark,
         },
       },
       fontFamily: {
