@@ -1,12 +1,15 @@
 import Link from "next/link";
+import showConfig from "@/show.config";
 
 export default function SiteHeader() {
+  const [showNameFirstWord, ...showNameRestWords] = showConfig.showNameShort.split(" ");
+
   return (
     <header className="bg-brand-purple border-b border-brand-purple-mid">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center gap-2">
           <span className="text-white font-bold text-lg tracking-tight">
-            Limitless <span className="text-brand-gold">Living</span>
+            {showNameFirstWord} <span className="text-brand-gold">{showNameRestWords.join(" ")}</span>
           </span>
         </Link>
         <nav className="flex items-center gap-4 sm:gap-6">
@@ -23,7 +26,7 @@ export default function SiteHeader() {
             Guides
           </Link>
           <a
-            href="https://www.youtube.com/@limitlesslivingpodcast"
+            href={showConfig.platforms.youtube}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:block"

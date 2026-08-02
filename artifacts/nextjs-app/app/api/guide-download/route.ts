@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import showConfig from "@/show.config";
 
 const SYSTEME_API_KEY = process.env.SYSTEME_API_KEY ?? "";
 const SYSTEME_API_URL = "https://api.systeme.io/api";
 
+const TAG_PREFIX = showConfig.systeme.tagPrefix;
+
 const SYSTEME_TAG_IDS: Record<string, number> = {
-  "lls-guide-download": 2052428,
-  "lls-grief": 1975331,
-  "lls-relationship": 1975332,
-  "lls-health": 1975333,
-  "lls-financial": 1975334,
-  "lls-spiritual": 1975335,
-  "lls-career": 1975336,
+  [`${TAG_PREFIX}-guide-download`]: showConfig.systeme.tags.guideDownload,
+  [`${TAG_PREFIX}-grief`]: showConfig.systeme.tags.grief,
+  [`${TAG_PREFIX}-relationship`]: showConfig.systeme.tags.relationship,
+  [`${TAG_PREFIX}-health`]: showConfig.systeme.tags.health,
+  [`${TAG_PREFIX}-financial`]: showConfig.systeme.tags.financial,
+  [`${TAG_PREFIX}-spiritual`]: showConfig.systeme.tags.spiritual,
+  [`${TAG_PREFIX}-career`]: showConfig.systeme.tags.career,
 };
 
 async function getOrCreateSystemeContact(email: string, firstName: string): Promise<string | null> {
@@ -86,9 +89,9 @@ export async function POST(req: NextRequest) {
     try {
       const contactId = await getOrCreateSystemeContact(email, firstName);
       if (contactId) {
-        const tagIds: number[] = [SYSTEME_TAG_IDS["lls-guide-download"]];
+        const tagIds: number[] = [SYSTEME_TAG_IDS[`${TAG_PREFIX}-guide-download`]];
         if (episode.crisisCategory) {
-          const catTag = SYSTEME_TAG_IDS[`lls-${episode.crisisCategory}`];
+          const catTag = SYSTEME_TAG_IDS[`${TAG_PREFIX}-${episode.crisisCategory}`];
           if (catTag) tagIds.push(catTag);
         }
         await addTagsToSystemeContact(contactId, tagIds);

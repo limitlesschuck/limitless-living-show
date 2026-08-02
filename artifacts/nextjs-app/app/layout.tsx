@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import SessionProvider from "@/components/SessionProvider";
+import showConfig from "@/show.config";
 
 export const metadata: Metadata = {
-  title: "Limitless Living Show",
-  description: "Transformation stories and coaching resources",
+  title: showConfig.showName,
+  description: showConfig.showTagline,
 };
 
 export default function RootLayout({

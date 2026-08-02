@@ -5,6 +5,7 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer";
+import showConfig from "@/show.config";
 
 const styles = StyleSheet.create({
   page: {
@@ -15,7 +16,7 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
   },
   header: {
-    backgroundColor: "#2D1B69",
+    backgroundColor: showConfig.brand.purple,
     marginHorizontal: -48,
     marginTop: -48,
     paddingHorizontal: 48,
@@ -23,7 +24,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   showName: {
-    color: "#F0A500",
+    color: showConfig.brand.gold,
     fontSize: 11,
     fontFamily: "Helvetica-Bold",
     textTransform: "uppercase",
@@ -48,14 +49,14 @@ const styles = StyleSheet.create({
   },
   guideDivider: {
     height: 3,
-    backgroundColor: "#F0A500",
+    backgroundColor: showConfig.brand.gold,
     marginBottom: 28,
     width: 60,
   },
   sectionTitle: {
     fontSize: 14,
     fontFamily: "Helvetica-Bold",
-    color: "#2D1B69",
+    color: showConfig.brand.purple,
     marginBottom: 10,
     marginTop: 24,
     paddingBottom: 4,
@@ -83,7 +84,7 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Oblique",
     paddingLeft: 12,
     borderLeftWidth: 2,
-    borderLeftColor: "#F0A500",
+    borderLeftColor: showConfig.brand.gold,
   },
   actionItem: {
     fontSize: 10,
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
-    color: "#2D1B69",
+    color: showConfig.brand.purple,
     marginBottom: 4,
   },
   ctaText: {

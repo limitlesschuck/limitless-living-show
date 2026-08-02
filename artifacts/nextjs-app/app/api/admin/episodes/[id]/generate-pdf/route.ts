@@ -6,6 +6,7 @@ import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { EpisodeGuidePDF } from "@/lib/episode-guide-pdf";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import React from "react";
+import showConfig from "@/show.config";
 
 const R2 = new S3Client({
   region: "auto",
@@ -16,9 +17,9 @@ const R2 = new S3Client({
   },
 });
 
-const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? "limitless-living-media";
+const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? showConfig.r2.bucket;
 const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.limitlesslivingpodcast.com").replace(/\/$/, "");
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? showConfig.domain).replace(/\/$/, "");
 
 export async function POST(
   _req: NextRequest,
@@ -46,7 +47,7 @@ export async function POST(
 
   try {
     const pdfElement = React.createElement(EpisodeGuidePDF, {
-      showName: "Limitless Living Show",
+      showName: showConfig.showName,
       episodeTitle: episode.titleYoutube ?? episode.titleOriginal,
       episodeNumber: episode.episodeNumber,
       guestName: episode.guestName,
@@ -55,7 +56,7 @@ export async function POST(
       guideTakeaways: episode.guideTakeaways ?? "",
       guideQuotes: episode.guideQuotes ?? "",
       guideActionItems: episode.guideActionItems ?? "",
-      assessmentUrl: `${APP_URL || "https://www.limitlesslivingpodcast.com"}/assessment`,
+      assessmentUrl: `${APP_URL || showConfig.domain}/assessment`,
     }) as unknown as React.ReactElement<DocumentProps>;
 
     const pdfBuffer = await renderToBuffer(pdfElement);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import showConfig from "@/show.config";
 
 const navItems = [
   { label: "Dashboard", href: "/admin" },
@@ -30,7 +31,7 @@ export default function AdminSidebar({ user }: Props) {
     <aside className="w-56 bg-white border-r border-gray-200 flex flex-col min-h-screen">
       <div className="p-5 border-b border-gray-200">
         <p className="text-sm font-semibold text-gray-900 truncate">
-          Limitless Living
+          {showConfig.showNameShort}
         </p>
         <p className="text-xs text-gray-500 mt-0.5">Admin</p>
       </div>

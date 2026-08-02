@@ -3,6 +3,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import HeroPhoto from "@/components/HeroPhoto";
 import { getCategoryOptions } from "@/lib/categories";
+import showConfig from "@/show.config";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,15 +15,15 @@ async function getCategoryLabels() {
 const PLATFORMS = [
   {
     name: "Apple Podcasts",
-    href: "https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846",
+    href: showConfig.platforms.apple,
   },
   {
     name: "Spotify",
-    href: "https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC",
+    href: showConfig.platforms.spotify,
   },
   {
     name: "YouTube",
-    href: "https://www.youtube.com/@limitlesslivingpodcast",
+    href: showConfig.platforms.youtube,
   },
 ];
 
@@ -149,7 +150,7 @@ function EpisodeCard({
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-brand-purple">
-                <span className="text-brand-gold text-4xl font-bold">LLS</span>
+                <span className="text-brand-gold text-4xl font-bold">{showConfig.showInitials}</span>
               </div>
             )}
           </div>
@@ -195,7 +196,7 @@ function EpisodeCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-brand-purple">
-            <span className="text-brand-gold text-2xl font-bold">LLS</span>
+            <span className="text-brand-gold text-2xl font-bold">{showConfig.showInitials}</span>
           </div>
         )}
         {category && (
@@ -240,7 +241,7 @@ export default async function HomePage() {
             {/* Left — text content */}
             <div>
               <p className="text-brand-gold text-sm font-semibold uppercase tracking-widest mb-4">
-                The Limitless Living Show with Chuck Anderson
+                The {showConfig.showName} with {showConfig.hostName}
               </p>
               <h1 className="text-4xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
                 Real stories of transformation and overcoming limits
@@ -333,7 +334,7 @@ export default async function HomePage() {
         {latest.length === 0 && (
           <section className="text-center py-24">
             <div className="w-16 h-16 bg-brand-purple rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-brand-gold text-2xl font-bold">LLS</span>
+              <span className="text-brand-gold text-2xl font-bold">{showConfig.showInitials}</span>
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">
               Episodes coming soon
@@ -369,7 +370,7 @@ export default async function HomePage() {
       <footer className="bg-brand-purple-dark border-t border-brand-purple mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-400">
-            © {new Date().getFullYear()} Limitless Living Show with Chuck Anderson
+            © {new Date().getFullYear()} {showConfig.showName} with {showConfig.hostName}
           </p>
           <div className="flex items-center gap-4 flex-wrap justify-center">
             <Link href="/episodes" className="text-xs text-gray-400 hover:text-white transition-colors">
@@ -378,13 +379,13 @@ export default async function HomePage() {
             <Link href="/assessment" className="text-xs text-gray-400 hover:text-white transition-colors">
               Assessment
             </Link>
-            <a href="https://podcasts.apple.com/us/podcast/the-limitless-living-show/id1751543846" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+            <a href={showConfig.platforms.apple} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
               Apple Podcasts
             </a>
-            <a href="https://open.spotify.com/show/78eDxPL98YSRZQP80n8rLC" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+            <a href={showConfig.platforms.spotify} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
               Spotify
             </a>
-            <a href="https://www.youtube.com/@limitlesslivingpodcast" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
+            <a href={showConfig.platforms.youtube} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-white transition-colors">
               YouTube
             </a>
           </div>
