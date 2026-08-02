@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCategoryProseMap } from "@/lib/categories";
+import SiteLogo from "@/components/SiteLogo";
+import showConfig from "@/show.config";
 
 const RESULT_CONTENT: Record<
   string,
@@ -17,7 +19,7 @@ const RESULT_CONTENT: Record<
     subtext:
       "Based on your answers, you're dealing with something significant and would benefit most from working with a specialist coach. We've matched you with coaches who have helped others through exactly what you're experiencing.",
     ctaLabel: "Connect with a coach →",
-    ctaHref: "https://www.betterhelp.com",
+    ctaHref: showConfig.resultLinks.coachReferral,
     secondaryLabel: "Browse episodes first",
   },
   resource: {
@@ -111,7 +113,7 @@ export default async function ResultPage({
       <div className="bg-brand-purple">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="text-white font-bold text-lg">
-            Limitless <span className="text-brand-gold">Living</span>
+            <SiteLogo />
           </Link>
           <span className="text-gray-300 text-sm">Your results</span>
         </div>
@@ -186,7 +188,7 @@ export default async function ResultPage({
                     ) : (
                       <div className="w-20 h-14 bg-brand-purple rounded-lg flex items-center justify-center flex-shrink-0">
                         <span className="text-brand-gold text-xs font-bold">
-                          LLS
+                          {showConfig.showInitials}
                         </span>
                       </div>
                     )}

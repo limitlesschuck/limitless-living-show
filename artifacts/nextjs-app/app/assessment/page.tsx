@@ -3,6 +3,8 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import SiteLogo from "@/components/SiteLogo";
+import showConfig from "@/show.config";
 
 interface QuestionOption {
   value: string;
@@ -99,7 +101,7 @@ function AssessmentFunnel() {
       <div className="bg-brand-purple">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="text-white font-bold text-lg">
-            Limitless <span className="text-brand-gold">Living</span>
+            <SiteLogo />
           </Link>
           <span className="text-gray-300 text-sm">Free assessment</span>
         </div>
@@ -178,7 +180,7 @@ function AssessmentFunnel() {
               {submitting ? "Finding your path..." : "Show me my results →"}
             </button>
             <p className="text-xs text-gray-400 text-center">
-              By continuing you agree to receive emails from the Limitless Living Show. Unsubscribe any time.
+              By continuing you agree to receive emails from the {showConfig.showName}. Unsubscribe any time.
             </p>
           </form>
         )}

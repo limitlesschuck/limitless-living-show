@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import showConfig from "@/show.config";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function AdminLoginPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold text-gray-900">
-              Limitless Living
+              {showConfig.showNameShort}
             </h1>
             <p className="text-sm text-gray-500 mt-1">Admin dashboard</p>
           </div>

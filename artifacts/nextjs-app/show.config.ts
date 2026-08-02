@@ -62,6 +62,10 @@ const showConfig = {
       career: 1975336,
     },
   },
+
+  resultLinks: {
+    coachReferral: "https://www.betterhelp.com",
+  },
 } as const;
 
 export default showConfig;
