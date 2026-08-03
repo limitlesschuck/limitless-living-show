@@ -1,16 +1,13 @@
 import Link from "next/link";
 import showConfig from "@/show.config";
+import SiteLogo from "@/components/SiteLogo";
 
 export default function SiteHeader() {
-  const [showNameFirstWord, ...showNameRestWords] = showConfig.showNameShort.split(" ");
-
   return (
     <header className="bg-brand-purple border-b border-brand-purple-mid">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-white font-bold text-lg tracking-tight">
-            {showNameFirstWord} <span className="text-brand-gold">{showNameRestWords.join(" ")}</span>
-          </span>
+          <SiteLogo />
         </Link>
         <nav className="flex items-center gap-4 sm:gap-6">
           <Link
