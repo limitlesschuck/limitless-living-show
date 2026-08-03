@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import showConfig from "@/show.config";
 
 interface Episode {
   id: string;
@@ -710,12 +711,12 @@ export default function EpisodeDetailPage() {
                 <div className="flex items-center gap-2">
                   {form.slug ? (
                     <a
-                      href={`https://limitlesslivingpodcast.com/episodes/${form.slug}`}
+                      href={`${showConfig.domain}/episodes/${form.slug}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-brand-purple hover:underline truncate"
                     >
-                      limitlesslivingpodcast.com/episodes/{form.slug}
+                      {showConfig.domain.replace(/^https?:\/\//, "")}/episodes/{form.slug}
                     </a>
                   ) : (
                     <span className="text-xs text-gray-400">No slug set</span>
@@ -772,7 +773,7 @@ export default function EpisodeDetailPage() {
               />
               {episode.episodeNumber && episode.guestName && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Expected folder: LLS-{String(episode.episodeNumber).padStart(3, "0")} {episode.guestName}
+                  Expected folder: {showConfig.showInitials}-{String(episode.episodeNumber).padStart(3, "0")} {episode.guestName}
                 </p>
               )}
             </Field>

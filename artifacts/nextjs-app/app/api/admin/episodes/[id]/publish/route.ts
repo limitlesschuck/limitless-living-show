@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import showConfig from "@/show.config";
 
 const MAKE_WEBHOOK_URL =
   "https://hook.us2.make.com/026hpzp326lmlulqd6mx4asxfowkv4rf";
@@ -35,7 +36,7 @@ function buildPayload(episode: {
   const paddedNum = epNum ? String(epNum).padStart(3, "0") : null;
   const folderHint =
     paddedNum && episode.guestName
-      ? `LLS-${paddedNum} ${episode.guestName}`
+      ? `${showConfig.showInitials}-${paddedNum} ${episode.guestName}`
       : null;
 
   return {
@@ -54,7 +55,7 @@ function buildPayload(episode: {
     desc: episode.descriptionYoutube,
     captivateId: episode.captivateId,
     epUrl: episode.captivateId
-      ? `https://limitlesslivingpodcast.com/episode/${episode.captivateId}`
+      ? `${showConfig.domain}/episode/${episode.captivateId}`
       : null,
     thumb: episode.youtubeThumbnailUrl ?? episode.thumbnailUrl,
     coverArtUrl: episode.coverArtUrl ?? episode.thumbnailUrl,

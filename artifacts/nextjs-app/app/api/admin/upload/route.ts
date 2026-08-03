@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import showConfig from "@/show.config";
 
 const R2 = new S3Client({
   region: "auto",
@@ -12,7 +13,7 @@ const R2 = new S3Client({
   },
 });
 
-const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? "limitless-living-media";
+const BUCKET = process.env.CLOUDFLARE_R2_BUCKET ?? showConfig.r2.bucket;
 const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
 
 export async function POST(req: NextRequest) {

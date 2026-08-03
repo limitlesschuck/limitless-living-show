@@ -1,3 +1,5 @@
+import showConfig from "@/show.config";
+
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 
@@ -31,7 +33,7 @@ export async function generateGuideContent(params: {
     ? `TRANSCRIPT:\n${params.transcript.slice(0, 10000)}`
     : `SHOW NOTES:\n${params.descriptionOriginal ?? "Not provided"}`;
 
-  const prompt = `You are an expert content creator for the Limitless Living Show podcast. Your job is to extract and structure the most valuable content from a podcast episode transcript into a downloadable episode guide for listeners.
+  const prompt = `You are an expert content creator for the ${showConfig.showName} podcast. Your job is to extract and structure the most valuable content from a podcast episode transcript into a downloadable episode guide for listeners.
 
 Guest: ${params.guestName ?? "Not specified"}
 
