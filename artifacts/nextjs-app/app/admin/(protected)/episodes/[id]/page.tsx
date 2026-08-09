@@ -19,10 +19,13 @@ interface Episode {
   guestEmail: string | null;
   affiliateLink: string | null;
   swipeCopy: string | null;
+  swipeCopyPdfUrl: string | null;
   systemeContactId: string | null;
   episodeNumber: number | null;
   crisisCategory: string | null;
   tags: string[];
+  qaSection: string | null;
+  pullQuotes: string | null;
   publishStatus: string;
   audioUrl: string | null;
   thumbnailUrl: string | null;
@@ -61,6 +64,8 @@ export default function EpisodeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generateStatus, setGenerateStatus] = useState<string | null>(null);
+  const [generatingSwipePdf, setGeneratingSwipePdf] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [testing, setTesting] = useState(false);
   const [resyncing, setResyncing] = useState(false);
@@ -87,6 +92,8 @@ export default function EpisodeDetailPage() {
     guestBio: "",
     crisisCategory: "",
     tags: "",
+    qaSection: "",
+    pullQuotes: "",
     publishStatus: "draft",
     youtubeId: "",
     mp4Url: "",
@@ -95,6 +102,7 @@ export default function EpisodeDetailPage() {
     guestEmail: "",
     affiliateLink: "",
     swipeCopy: "",
+    swipeCopyPdfUrl: "",
     systemeContactId: "",
     slug: "",
     captivateId: "",
@@ -120,6 +128,8 @@ export default function EpisodeDetailPage() {
       guestBio: data.guestBio ?? "",
       crisisCategory: data.crisisCategory ?? "",
       tags: (data.tags ?? []).join(", "),
+      qaSection: data.qaSection ?? "",
+      pullQuotes: data.pullQuotes ?? "",
       publishStatus: data.publishStatus ?? "draft",
       youtubeId: data.youtubeId ?? "",
       mp4Url: data.mp4Url ?? "",
@@ -128,6 +138,7 @@ export default function EpisodeDetailPage() {
       guestEmail: data.guestEmail ?? "",
       affiliateLink: data.affiliateLink ?? "",
       swipeCopy: data.swipeCopy ?? "",
+      swipeCopyPdfUrl: data.swipeCopyPdfUrl ?? "",
       systemeContactId: data.systemeContactId ?? "",
       slug: data.slug ?? "",
       captivateId: data.captivateId ?? "",
@@ -179,6 +190,23 @@ export default function EpisodeDetailPage() {
       setMessage({ type: "error", text: data.error ?? "PDF generation failed" });
     }
     setGeneratingPdf(false);
+  }
+
+  async function handleGenerateSwipePdf() {
+    setGeneratingSwipePdf(true);
+    setMessage(null);
+    const res = await fetch(
+      `/api/admin/episodes/${id}/generate-swipe-pdf`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    if (res.ok && data.pdfUrl) {
+      setForm((f) => ({ ...f, swipeCopyPdfUrl: data.pdfUrl }));
+      setMessage({ type: "success", text: "Swipe copy PDF generated and stored — ready for download" });
+    } else {
+      setMessage({ type: "error", text: data.error ?? "Swipe copy PDF generation failed" });
+    }
+    setGeneratingSwipePdf(false);
   }
 
   async function handleGenerateGuide() {
@@ -347,9 +375,20 @@ export default function EpisodeDetailPage() {
   async function runGenerate() {
     setGenerating(true);
     setMessage(null);
+    setGenerateStatus("Analysing episode content…");
+
+    const statusTimers = [
+      setTimeout(() => setGenerateStatus("Generating titles and descriptions…"), 3000),
+      setTimeout(() => setGenerateStatus("Generating Q&A and pull quotes…"), 8000),
+    ];
+
     const res = await fetch(`/api/admin/episodes/${id}/generate`, {
       method: "POST",
     });
+
+    statusTimers.forEach(clearTimeout);
+    setGenerateStatus(null);
+
     const data = await res.json();
     if (res.ok) {
       setMessage({
@@ -515,6 +554,13 @@ export default function EpisodeDetailPage() {
               </button>
             </div>
 
+            {generating && generateStatus && (
+              <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-purple-50 border border-purple-100 rounded-lg">
+                <div className="w-3 h-3 rounded-full border-2 border-brand-purple border-t-transparent animate-spin flex-shrink-0" />
+                <p className="text-xs text-brand-purple font-medium">{generateStatus}</p>
+              </div>
+            )}
+
             <Field label="YouTube title">
               <input
                 type="text"
@@ -581,6 +627,61 @@ export default function EpisodeDetailPage() {
                 }
                 className="input"
                 placeholder="grief recovery, starting over, rebuilding your life"
+              />
+            </Field>
+
+            <Field label="Q&A section">
+              <textarea
+                value={form.qaSection ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, qaSection: e.target.value }))}
+                rows={14}
+                className="input"
+                placeholder="5–7 Q&A pairs generated from the episode transcript"
+              />
+            </Field>
+            <Field label="Pull quotes">
+              <textarea
+                value={form.pullQuotes ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, pullQuotes: e.target.value }))}
+                rows={8}
+                className="input"
+                placeholder="3–5 attributed pull quotes from the guest"
+              />
+            </Field>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Swipe copy"
+            subtitle="Social post and email the guest can use to promote the episode"
+            defaultOpen={Boolean(form.swipeCopy)}
+          >
+            <button
+              type="button"
+              onClick={handleGenerateSwipePdf}
+              disabled={generatingSwipePdf || !form.swipeCopy}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {generatingSwipePdf ? "Generating PDF..." : "Generate Swipe Copy PDF"}
+            </button>
+
+            {form.swipeCopyPdfUrl && (
+              <a
+                href={form.swipeCopyPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center px-4 py-2 text-sm font-medium text-brand-purple border border-brand-purple rounded-lg hover:bg-purple-50 transition-colors"
+              >
+                View Swipe Copy PDF →
+              </a>
+            )}
+
+            <Field label="Swipe copy">
+              <textarea
+                value={form.swipeCopy}
+                onChange={(e) => setForm((f) => ({ ...f, swipeCopy: e.target.value }))}
+                rows={16}
+                className="input"
+                placeholder="AI-generated social post and email for the guest to share"
               />
             </Field>
           </CollapsibleSection>
@@ -714,17 +815,6 @@ export default function EpisodeDetailPage() {
                 value={form.affiliateLink}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, affiliateLink: e.target.value }))
-                }
-                className="input"
-                placeholder="https://..."
-              />
-            </Field>
-            <Field label="Swipe copy URL">
-              <input
-                type="url"
-                value={form.swipeCopy}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, swipeCopy: e.target.value }))
                 }
                 className="input"
                 placeholder="https://..."

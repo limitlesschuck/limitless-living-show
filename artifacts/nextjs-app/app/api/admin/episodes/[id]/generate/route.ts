@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateEpisodeContent } from "@/lib/claude";
-import { generateSlug } from "@/lib/slug";
 
 export async function POST(
   _req: NextRequest,
@@ -52,24 +51,21 @@ export async function POST(
     },
   });
 
-  const newSlug = generateSlug({
-    episodeNumber: episode.episodeNumber,
-    titleYoutube: generated.youtubeTitles[0],
-    titleOriginal: episode.titleOriginal,
-    guestName: episode.guestName,
-  });
-
   await prisma.episode.update({
     where: { id: episode.id },
     data: {
-      slug: newSlug,
       titleYoutube: generated.youtubeTitles[0],
       titlePodcast: generated.podcastTitle,
       descriptionYoutube: generated.youtubeDescription,
       descriptionWebsite: generated.websiteDescription,
       tags: generated.tags,
       crisisCategory: episode.crisisCategory ?? generated.suggestedCategory,
-      publishStatus: "ai_generated",
+      qaSection: generated.qaSection,
+      pullQuotes: generated.pullQuotes,
+      swipeCopy: generated.swipeCopy,
+      publishStatus: episode.publishStatus === "published" || episode.publishStatus === "approved"
+        ? episode.publishStatus
+        : "ai_generated",
     },
   });
 

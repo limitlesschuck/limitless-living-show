@@ -169,6 +169,41 @@ export default async function EpisodeDetailPage({
           </div>
         )}
 
+        {/* Q&A section */}
+        {episode.qaSection && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Questions this episode answers</h2>
+            <div className="space-y-4">
+              {episode.qaSection.split('\n\n').filter(Boolean).map((block, i) => {
+                const lines = block.split('\n');
+                const question = lines[0]?.replace(/^Q:\s*/, '');
+                const answer = lines[1]?.replace(/^A:\s*/, '');
+                if (!question || !answer) return null;
+                return (
+                  <div key={i} className="border-l-4 border-brand-purple pl-4">
+                    <p className="font-semibold text-gray-900 mb-1">{question}</p>
+                    <p className="text-gray-600 text-sm">{answer}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Pull quotes */}
+        {episode.pullQuotes && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Key insights</h2>
+            <div className="space-y-4">
+              {episode.pullQuotes.split('\n\n').filter(Boolean).map((quote, i) => (
+                <blockquote key={i} className="border-l-4 border-brand-gold pl-4 italic text-gray-700">
+                  {quote}
+                </blockquote>
+              ))}
+            </div>
+          </div>
+        )}
+
         {episode.transcript && (
           <TranscriptToggle transcript={episode.transcript} />
         )}

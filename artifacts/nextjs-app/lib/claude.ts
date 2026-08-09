@@ -10,6 +10,9 @@ export interface GeneratedEpisodeContent {
   websiteDescription: string;
   tags: string[];
   suggestedCategory: string;
+  qaSection: string;
+  pullQuotes: string;
+  swipeCopy: string;
 }
 
 export interface GeneratedGuideContent {
@@ -111,6 +114,39 @@ Keywords: ${params.riversideKeywords ?? "Not specified"}
 ${contentSource}
 ${categoryHint}
 
+Also generate:
+
+Q&A SECTION (5-7 questions this episode answers):
+Format each as:
+Q: [Plain question someone would type into ChatGPT — specific, direct, no fluff]
+A: [40-60 word direct answer. Start with the answer, not "In this episode..."]
+
+PULL QUOTES (3-5 attributed quotes):
+Format each as:
+"[Exact or paraphrased quote that is specific, ownable, and citable]" — [Guest Name]
+Choose quotes that name a specific framework, strategy, or counterintuitive insight.
+
+SWIPE COPY (written in the guest's voice for them to share with their audience):
+
+SOCIAL MEDIA POST:
+Write a 150-200 word social media post as if the guest is writing it. Start with "I'm excited to announce that I was recently interviewed on the ${showConfig.showName} with ${showConfig.hostName}!" Then summarize 2-3 key insights from the episode in the guest's voice. End with "Click here to listen: [AFFILIATE URL]"
+
+EMAIL:
+Subject: I was just interviewed on ${showConfig.hostName}'s Podcast
+
+Write an email in the guest's voice. Opening: "Hi {first_name}," then "I'm excited to announce that I was recently interviewed on the ${showConfig.showName} with ${showConfig.hostName}!" Then 2-3 paragraphs expanding on the episode insights. Close with "Click here to listen: [AFFILIATE URL]" then "Thanks for your support and I look forward to hearing what you think of this episode." Sign off with the guest's name.
+
+Format the swipe copy exactly like this:
+SOCIAL MEDIA POST:
+[post text]
+
+---
+
+EMAIL SUBJECT: I was just interviewed on ${showConfig.hostName}'s Podcast
+
+EMAIL BODY:
+[email text]
+
 Generate the following and return ONLY valid JSON with no markdown, no code fences, no preamble:
 
 {
@@ -123,7 +159,10 @@ Generate the following and return ONLY valid JSON with no markdown, no code fenc
   "podcastTitle": "Rewritten podcast title optimised for Apple and Spotify search — under 60 chars, lead with topic not guest name",
   "websiteDescription": "SEO-optimised episode page description (150-200 words). Include the primary search keyword naturally. Write for someone searching for help with this specific crisis.",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"],
-  "suggestedCategory": "one of: ${categoryValues.join(", ")}"
+  "suggestedCategory": "one of: ${categoryValues.join(", ")}",
+  "qaSection": "Full Q&A section formatted exactly as specified",
+  "pullQuotes": "Pull quotes formatted exactly as specified",
+  "swipeCopy": "Full swipe copy formatted exactly as specified above"
 }`;
 
   const res = await fetch(CLAUDE_API_URL, {
@@ -135,7 +174,7 @@ Generate the following and return ONLY valid JSON with no markdown, no code fenc
     },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 1500,
+      max_tokens: 6000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
