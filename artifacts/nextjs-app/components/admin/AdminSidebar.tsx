@@ -10,8 +10,9 @@ const navItems = [
   { label: "Episodes", href: "/admin/episodes" },
   { label: "Leads", href: "/admin/leads" },
   { label: "Assessment", href: "/admin/assessment" },
-  { label: "Coaches", href: "/admin/coaches" },
+  { label: "Collaborators", href: "/admin/coaches" },
   { label: "Affiliates", href: "/admin/affiliates" },
+  { label: "Redirects", href: "/admin/redirects" },
   { label: "AI Content", href: "/admin/ai-content" },
   { label: "Settings", href: "/admin/settings" },
 ];

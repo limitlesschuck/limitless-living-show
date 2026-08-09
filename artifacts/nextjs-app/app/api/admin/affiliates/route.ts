@@ -23,7 +23,17 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { crisisCategory, urgencyLevel, affiliateName, affiliateUrl, priority, isDefault } = body;
+  const {
+    crisisCategory,
+    urgencyLevel,
+    affiliateName,
+    affiliateUrl,
+    priority,
+    isDefault,
+    description,
+    imageUrl,
+    showAboveExperts,
+  } = body;
 
   if (!crisisCategory || !urgencyLevel || !affiliateName || !affiliateUrl) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -38,6 +48,9 @@ export async function POST(req: NextRequest) {
       priority: priority ?? 1,
       isActive: true,
       isDefault: isDefault ?? false,
+      description: description ?? null,
+      imageUrl: imageUrl ?? null,
+      showAboveExperts: showAboveExperts ?? false,
     },
   });
 

@@ -21,6 +21,9 @@ export async function PATCH(
     "priority",
     "isActive",
     "isDefault",
+    "description",
+    "imageUrl",
+    "showAboveExperts",
   ];
 
   const data: Record<string, unknown> = {};
