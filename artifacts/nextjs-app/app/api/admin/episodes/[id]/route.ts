@@ -43,6 +43,7 @@ export async function PATCH(
   const allowed = [
     "titleYoutube",
     "titlePodcast",
+    "transcript",
     "descriptionYoutube",
     "descriptionWebsite",
     "guestName",
@@ -74,10 +75,30 @@ export async function PATCH(
     if (key in body) data[key] = body[key];
   }
 
+  // Normalize slug: empty string → null to avoid unique constraint violation
+  if ("slug" in data) {
+    data.slug = data.slug || null;
+  }
+
+  const existingEpisode = await prisma.episode.findUnique({
+    where: { id: params.id },
+    select: { slug: true },
+  });
+
   const episode = await prisma.episode.update({
     where: { id: params.id },
     data,
   });
+
+  // If a new slug was just set on an episode that previously had none,
+  // create a redirect from the episode ID path so old links still work
+  if (existingEpisode && data.slug && !existingEpisode.slug) {
+    await prisma.redirectMap.upsert({
+      where: { oldSlug: params.id },
+      update: { episodeId: episode.id },
+      create: { oldSlug: params.id, episodeId: episode.id },
+    });
+  }
 
   return NextResponse.json(episode);
 }

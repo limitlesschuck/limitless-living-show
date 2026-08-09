@@ -22,26 +22,52 @@ const STATUS_STYLES: Record<string, string> = {
   published: "bg-green-50 text-green-700",
 };
 
+function getPageNumbers(current: number, total: number): (number | "ellipsis")[] {
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 3) {
+    return [1, 2, 3, 4, "ellipsis", total];
+  }
+  if (current >= total - 2) {
+    return [1, "ellipsis", total - 3, total - 2, total - 1, total];
+  }
+  return [1, "ellipsis", current - 1, current, current + 1, "ellipsis", total];
+}
+
 export default function EpisodesPage() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [total, setTotal] = useState(0);
+  const [limit, setLimit] = useState(20);
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({});
 
-  async function loadEpisodes(status: string) {
+  async function loadEpisodes(status: string, pageNum: number) {
     setLoading(true);
-    const params = status ? `?filter=${status}` : "";
-    const res = await fetch(`/api/admin/episodes${params}`);
+    const params = new URLSearchParams({ page: String(pageNum) });
+    if (status) params.set("filter", status);
+    const res = await fetch(`/api/admin/episodes?${params.toString()}`);
     const data = await res.json();
     setEpisodes(data.episodes ?? []);
     setTotal(data.total ?? 0);
+    setLimit(data.limit ?? 20);
     setLoading(false);
   }
 
   useEffect(() => {
-    loadEpisodes(filter);
-  }, [filter]);
+    loadEpisodes(filter, page);
+  }, [filter, page]);
+
+  function changeFilter(status: string) {
+    setFilter(status);
+    setPage(1);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const rangeStart = total === 0 ? 0 : (page - 1) * limit + 1;
+  const rangeEnd = Math.min(page * limit, total);
 
   useEffect(() => {
     fetch("/api/admin/categories")
@@ -75,7 +101,7 @@ export default function EpisodesPage() {
         {["", "draft", "ai_generated", "approved", "published"].map((s) => (
           <button
             key={s}
-            onClick={() => setFilter(s)}
+            onClick={() => changeFilter(s)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
               filter === s
                 ? "bg-gray-900 text-white border-gray-900"
@@ -178,6 +204,51 @@ export default function EpisodesPage() {
           </table>
         )}
       </div>
+
+      {total > 0 && (
+        <div className="flex items-center justify-between mt-4 flex-wrap gap-3">
+          <p className="text-xs text-gray-500">
+            Showing {rangeStart}–{rangeEnd} of {total} episode{total !== 1 ? "s" : ""}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page <= 1}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:border-gray-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              {getPageNumbers(page, totalPages).map((p, i) =>
+                p === "ellipsis" ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                      p === page
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:border-gray-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

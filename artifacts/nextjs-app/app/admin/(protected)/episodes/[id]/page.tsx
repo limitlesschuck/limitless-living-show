@@ -11,6 +11,7 @@ interface Episode {
   titleYoutube: string | null;
   titlePodcast: string | null;
   descriptionOriginal: string | null;
+  transcript: string | null;
   descriptionYoutube: string | null;
   descriptionWebsite: string | null;
   guestName: string | null;
@@ -35,6 +36,17 @@ interface Episode {
 }
 
 const STATUSES = ["draft", "ai_generated", "approved", "published"];
+
+function generateSlugFromTitle(title: string, episodeNumber?: number | null): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60)
+    .replace(/-$/, "");
+  return episodeNumber ? `ep-${episodeNumber}-${base}` : base;
+}
 
 interface CategoryOption {
   value: string;
@@ -63,10 +75,12 @@ export default function EpisodeDetailPage() {
   } | null>(null);
 
   const [slugEditing, setSlugEditing] = useState(false);
+  const [showTranscriptWarning, setShowTranscriptWarning] = useState(false);
 
   const [form, setForm] = useState({
     titleYoutube: "",
     titlePodcast: "",
+    transcript: "",
     descriptionYoutube: "",
     descriptionWebsite: "",
     guestName: "",
@@ -99,6 +113,7 @@ export default function EpisodeDetailPage() {
     setForm({
       titleYoutube: data.titleYoutube ?? "",
       titlePodcast: data.titlePodcast ?? "",
+      transcript: data.transcript ?? "",
       descriptionYoutube: data.descriptionYoutube ?? "",
       descriptionWebsite: data.descriptionWebsite ?? "",
       guestName: data.guestName ?? "",
@@ -329,7 +344,7 @@ export default function EpisodeDetailPage() {
     setPublishing(false);
   }
 
-  async function handleGenerate() {
+  async function runGenerate() {
     setGenerating(true);
     setMessage(null);
     const res = await fetch(`/api/admin/episodes/${id}/generate`, {
@@ -346,6 +361,14 @@ export default function EpisodeDetailPage() {
       setMessage({ type: "error", text: `Generation failed: ${data.error}` });
     }
     setGenerating(false);
+  }
+
+  function handleGenerate() {
+    if (!form.transcript.trim()) {
+      setShowTranscriptWarning(true);
+      return;
+    }
+    runGenerate();
   }
 
   useEffect(() => {
@@ -392,6 +415,40 @@ export default function EpisodeDetailPage() {
         </div>
       )}
 
+      {showTranscriptWarning && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">
+              No transcript found
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              No transcript found. Generating without a transcript may produce
+              lower quality content. You can paste a transcript in the
+              Original content section before generating.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTranscriptWarning(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTranscriptWarning(false);
+                  runGenerate();
+                }}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                Proceed without transcript
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <CollapsibleSection title="Original content (read only)" defaultOpen={false}>
@@ -405,6 +462,43 @@ export default function EpisodeDetailPage() {
                 </p>
               </Field>
             )}
+            {/* Transcript upload */}
+            <div className="flex items-center gap-3 mb-2">
+              <label className="text-xs font-semibold text-gray-700">Transcript</label>
+              <label className="cursor-pointer px-3 py-1 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors">
+                Upload VTT / SRT
+                <input
+                  type="file"
+                  accept=".vtt,.srt,.txt"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const res = await fetch(`/api/admin/episodes/${id}/upload-transcript`, {
+                      method: "POST",
+                      body: fd,
+                    });
+                    const data = await res.json();
+                    if (data.transcript) {
+                      setForm((f) => ({ ...f, transcript: data.transcript }));
+                    } else if (data.error) {
+                      alert(data.error);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <span className="text-xs text-gray-400">or paste below</span>
+            </div>
+            <textarea
+              value={form.transcript ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, transcript: e.target.value }))}
+              rows={12}
+              className="input"
+              placeholder="Paste full episode transcript here — used for AI content generation and AEO"
+            />
           </CollapsibleSection>
 
           <CollapsibleSection title="AI-generated content" defaultOpen={true}>
@@ -720,6 +814,23 @@ export default function EpisodeDetailPage() {
                     </a>
                   ) : (
                     <span className="text-xs text-gray-400">No slug set</span>
+                  )}
+                  {!form.slug && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          slug: generateSlugFromTitle(
+                            f.titleYoutube || episode.titleOriginal,
+                            episode.episodeNumber
+                          ),
+                        }))
+                      }
+                      className="text-xs font-medium text-white bg-gray-900 px-2 py-1 rounded-lg hover:bg-gray-800 transition-colors shrink-0"
+                    >
+                      Generate slug
+                    </button>
                   )}
                   <button
                     type="button"

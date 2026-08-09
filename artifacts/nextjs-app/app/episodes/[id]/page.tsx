@@ -5,6 +5,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import GuideDownloadModal from "@/components/GuideDownloadModal";
+import TranscriptToggle from "@/components/TranscriptToggle";
 import { getCategoryOptions } from "@/lib/categories";
 import showConfig from "@/show.config";
 
@@ -166,6 +167,10 @@ export default async function EpisodeDetailPage({
               {episode.descriptionWebsite ?? episode.descriptionOriginal}
             </div>
           </div>
+        )}
+
+        {episode.transcript && (
+          <TranscriptToggle transcript={episode.transcript} />
         )}
 
         {/* Guest bio */}
