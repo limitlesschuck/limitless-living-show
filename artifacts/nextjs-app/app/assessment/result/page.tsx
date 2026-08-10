@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { getCategoryProseMap } from "@/lib/categories";
+import { getCategoryOptions } from "@/lib/categories";
 import SiteLogo from "@/components/SiteLogo";
 import showConfig from "@/show.config";
 
@@ -40,6 +40,38 @@ const RESULT_CONTENT: Record<
   },
 };
 
+function AffiliateOfferCard({
+  offer,
+}: {
+  offer: { id: string; affiliateName: string; affiliateUrl: string; description: string | null; imageUrl: string | null };
+}) {
+  return (
+    <div className="bg-white rounded-2xl p-5 flex gap-4 items-start shadow-sm border border-gray-100">
+      {offer.imageUrl && (
+        <img
+          src={offer.imageUrl}
+          alt={offer.affiliateName}
+          className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+        />
+      )}
+      <div className="flex-1">
+        <p className="font-bold text-gray-900">{offer.affiliateName}</p>
+        {offer.description && (
+          <p className="text-sm text-gray-600">{offer.description}</p>
+        )}
+        <a
+          href={offer.affiliateUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block mt-3 px-4 py-2 bg-brand-admin-accent text-brand-purple-dark font-bold text-sm rounded-lg hover:bg-brand-admin-accent-light transition-colors"
+        >
+          Learn more →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 async function getMatchingEpisodes(crisisCategory: string) {
   return prisma.episode.findMany({
     where: {
@@ -63,25 +95,46 @@ async function getMatchingEpisodes(crisisCategory: string) {
   });
 }
 
-async function getAffiliateUrl(
+async function getFeaturedCollaborators(crisisCategory: string) {
+  return prisma.coach.findMany({
+    where: {
+      isActive: true,
+      specialties: { has: crisisCategory },
+    },
+    orderBy: { priority: "asc" },
+    take: 3,
+    include: {
+      episode: {
+        select: {
+          episodeNumber: true,
+          slug: true,
+          id: true,
+        },
+      },
+    },
+  });
+}
+
+async function getAffiliateOffers(
   crisisCategory: string,
-  urgency: string
-): Promise<string | null> {
-  const route = await prisma.affiliateRoute.findFirst({
+  urgency: string,
+  showAboveExperts: boolean
+) {
+  const matched = await prisma.affiliateRoute.findMany({
     where: {
       crisisCategory,
       isActive: true,
+      showAboveExperts,
       OR: [{ urgencyLevel: urgency }, { urgencyLevel: "any" }],
     },
     orderBy: { priority: "asc" },
   });
-  if (route) return route.affiliateUrl;
+  if (matched.length > 0) return matched;
 
-  const defaultRoute = await prisma.affiliateRoute.findFirst({
-    where: { isDefault: true, isActive: true },
+  return prisma.affiliateRoute.findMany({
+    where: { isDefault: true, isActive: true, showAboveExperts },
     orderBy: { priority: "asc" },
   });
-  return defaultRoute?.affiliateUrl ?? null;
 }
 
 export default async function ResultPage({
@@ -94,14 +147,18 @@ export default async function ResultPage({
   const urgency = searchParams.urgency ?? "exploring";
 
   const content = RESULT_CONTENT[resultType] ?? RESULT_CONTENT.resource;
-  const categoryProseMap = await getCategoryProseMap();
-  const categoryLabel = categoryProseMap[crisisCategory] ?? crisisCategory;
 
-  const [episodes, affiliateUrl] = await Promise.all([
+  const [episodes, aboveExpertsOffers, belowExpertsOffers, featuredCollaborators, categories] = await Promise.all([
     getMatchingEpisodes(crisisCategory),
-    getAffiliateUrl(crisisCategory, urgency),
+    getAffiliateOffers(crisisCategory, urgency, true),
+    getAffiliateOffers(crisisCategory, urgency, false),
+    getFeaturedCollaborators(crisisCategory),
+    getCategoryOptions(),
   ]);
 
+  const categoryLabel = categories.find((c) => c.value === crisisCategory)?.label ?? crisisCategory;
+
+  const affiliateUrl = belowExpertsOffers[0]?.affiliateUrl ?? aboveExpertsOffers[0]?.affiliateUrl ?? null;
   const ctaHref =
     resultType === "coach_referral" && affiliateUrl
       ? affiliateUrl
@@ -160,6 +217,78 @@ export default async function ResultPage({
             {content.secondaryLabel}
           </Link>
         </div>
+
+        {/* Affiliate offers — above Recommended Experts */}
+        {aboveExpertsOffers.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              Recommended Programs &amp; Services
+            </h2>
+            <div className="space-y-3">
+              {aboveExpertsOffers.map((offer) => (
+                <AffiliateOfferCard key={offer.id} offer={offer} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Featured collaborators */}
+        {featuredCollaborators.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">
+              Recommended Experts
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              These recommended experts can help you with the exact challenge you described in the assessment
+            </p>
+            <div className="space-y-3">
+              {featuredCollaborators.map((collaborator) => (
+                <div
+                  key={collaborator.id}
+                  className="bg-brand-purple-pale rounded-2xl p-5 flex gap-4 items-start border-l-4 border-brand-admin-accent"
+                >
+                  {collaborator.photoUrl && (
+                    <img
+                      src={collaborator.photoUrl}
+                      alt={collaborator.name}
+                      className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-900">{collaborator.name}</p>
+                    {collaborator.bio && (
+                      <p className="text-sm text-gray-600">{collaborator.bio}</p>
+                    )}
+                    {collaborator.profileUrl && (
+                      <a
+                        href={collaborator.profileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block mt-3 px-4 py-2 bg-brand-admin-accent text-brand-purple-dark font-bold text-sm rounded-lg hover:bg-brand-admin-accent-light transition-colors"
+                      >
+                        Connect with {collaborator.name.split(" ")[0]} →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Affiliate offers — below Recommended Experts */}
+        {belowExpertsOffers.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              Recommended Programs &amp; Services
+            </h2>
+            <div className="space-y-3">
+              {belowExpertsOffers.map((offer) => (
+                <AffiliateOfferCard key={offer.id} offer={offer} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Matching episodes */}
         {episodes.length > 0 && (

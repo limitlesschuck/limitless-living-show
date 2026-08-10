@@ -15,6 +15,9 @@ const showConfig = {
   // Domain & URLs
   domain: "https://www.limitlesslivingpodcast.com",
 
+  // Captivate RSS feed used to ingest episodes
+  captivateRssFeed: "https://feeds.captivate.fm/limitlessliving/",
+
   // Platform links
   platforms: {
     youtube: "https://www.youtube.com/@limitlesslivingpodcast",

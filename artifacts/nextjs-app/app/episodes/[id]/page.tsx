@@ -11,6 +11,93 @@ import showConfig from "@/show.config";
 
 export const dynamic = 'force-dynamic';
 
+function generateEpisodeSchema(episode: {
+  titleYoutube: string | null;
+  titleOriginal: string;
+  descriptionWebsite: string | null;
+  descriptionOriginal: string | null;
+  guestName: string | null;
+  episodeNumber: number | null;
+  captivatePublishedAt: Date | null;
+  audioUrl: string | null;
+  durationSeconds: number | null;
+  slug: string | null;
+  id: string;
+  qaSection: string | null;
+}) {
+  const title = episode.titleYoutube ?? episode.titleOriginal;
+  const description = episode.descriptionWebsite ?? episode.descriptionOriginal ?? "";
+  const url = `${showConfig.domain}/episodes/${episode.slug ?? episode.id}`;
+
+  const podcastEpisode: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "PodcastEpisode",
+    "name": title,
+    "description": description,
+    "url": url,
+    "partOfSeries": {
+      "@type": "PodcastSeries",
+      "name": showConfig.showName,
+      "url": showConfig.domain,
+    },
+    "author": {
+      "@type": "Person",
+      "name": showConfig.hostName,
+    },
+  };
+
+  if (episode.episodeNumber) {
+    podcastEpisode["episodeNumber"] = episode.episodeNumber;
+  }
+  if (episode.captivatePublishedAt) {
+    podcastEpisode["datePublished"] = episode.captivatePublishedAt.toISOString().split("T")[0];
+  }
+  if (episode.guestName) {
+    podcastEpisode["actor"] = { "@type": "Person", "name": episode.guestName };
+  }
+  if (episode.audioUrl) {
+    podcastEpisode["associatedMedia"] = {
+      "@type": "AudioObject",
+      "contentUrl": episode.audioUrl,
+      "encodingFormat": "audio/mpeg",
+      ...(episode.durationSeconds ? { "duration": `PT${Math.floor(episode.durationSeconds / 60)}M${episode.durationSeconds % 60}S` } : {}),
+    };
+  }
+
+  const schemas: unknown[] = [podcastEpisode];
+
+  // FAQPage schema from Q&A section
+  if (episode.qaSection) {
+    const qaPairs = episode.qaSection
+      .split("\n\n")
+      .filter(Boolean)
+      .map((block) => {
+        const lines = block.split("\n");
+        const q = lines[0]?.replace(/^Q:\s*/i, "").trim();
+        const a = lines[1]?.replace(/^A:\s*/i, "").trim();
+        return q && a ? { q, a } : null;
+      })
+      .filter(Boolean) as { q: string; a: string }[];
+
+    if (qaPairs.length > 0) {
+      schemas.push({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": qaPairs.map(({ q, a }) => ({
+          "@type": "Question",
+          "name": q,
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": a,
+          },
+        })),
+      });
+    }
+  }
+
+  return schemas;
+}
+
 async function getCategoryLabels() {
   const categories = await getCategoryOptions();
   return Object.fromEntries(categories.map((c) => [c.value, c.label]));
@@ -56,9 +143,14 @@ export default async function EpisodeDetailPage({
     : null;
   const ctaHeadline = episode.cta?.headline
     ?? showConfig.defaultCtaFallback;
+  const schemas = generateEpisodeSchema(episode);
 
   return (
     <div className="min-h-screen bg-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemas) }}
+      />
       <SiteHeader />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">

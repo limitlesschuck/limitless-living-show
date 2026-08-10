@@ -230,8 +230,25 @@ export default async function HomePage() {
   ]);
   const heroEpisode = featured[0] ?? latest[0] ?? null;
 
+  const podcastSeriesSchema = {
+    "@context": "https://schema.org",
+    "@type": "PodcastSeries",
+    "name": showConfig.showName,
+    "description": showConfig.showTagline,
+    "url": showConfig.domain,
+    "author": {
+      "@type": "Person",
+      "name": showConfig.hostName,
+    },
+    "webFeed": showConfig.captivateRssFeed,
+  };
+
   return (
     <div className="min-h-screen bg-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(podcastSeriesSchema) }}
+      />
       <SiteHeader />
 
       {/* Hero section */}
