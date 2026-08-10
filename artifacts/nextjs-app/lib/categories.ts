@@ -38,7 +38,7 @@ export async function getCategoryOptions(): Promise<CategoryOption[]> {
     const record = await prisma.assessmentConfig.findFirst();
     const config = record?.config as AssessmentConfigShape | null;
     const categoryQuestion = config?.questions?.find(
-      (q) => q.storeAs === "crisisCategory"
+      (q) => q.storeAs === "crisisCategory" || q.storeAs === "problemCategory" || q.storeAs === "problem_category"
     );
 
     if (!categoryQuestion?.options || categoryQuestion.options.length === 0) {

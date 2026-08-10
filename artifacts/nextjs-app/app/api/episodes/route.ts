@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
   const page = parseInt(searchParams.get("page") ?? "1");
-  const limit = 12;
+  const limit = parseInt(searchParams.get("limit") ?? "20");
   const skip = (page - 1) * limit;
 
   const where = {
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       take: limit,
       select: {
         id: true,
+        slug: true,
         titleOriginal: true,
         titleYoutube: true,
         descriptionWebsite: true,

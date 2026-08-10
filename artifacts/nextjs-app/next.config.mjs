@@ -10,6 +10,11 @@ const nextConfig = {
         destination: "/:path*",
         permanent: true,
       },
+      {
+        source: "/podcast",
+        destination: "/episodes",
+        permanent: true,
+      },
     ];
   },
   images: {
