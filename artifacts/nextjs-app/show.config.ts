@@ -12,6 +12,13 @@ const showConfig = {
   showTagline: "Transformation stories and coaching resources",
   defaultCtaFallback: "Ready to start your transformation?",
 
+  // Host bio
+  host: {
+    bio: "Chuck Anderson is a coach and serial entrepreneur with 30+ years of experience, and a lifelong learner and self-growth enthusiast. Through the Limitless Living Show, he brings you real conversations with coaches, authors, and speakers who have rebuilt their lives from the inside out — sharing the stories, strategies, and breakthroughs that can help you overcome your own limits and live a more fulfilling life.",
+    url: "https://www.chuckandersoncoaching.com",
+    urlAnchorText: "Chuck Anderson Coaching",
+  },
+
   // Domain & URLs
   domain: "https://www.limitlesslivingpodcast.com",
 

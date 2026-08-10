@@ -341,6 +341,22 @@ export default async function EpisodeDetailPage({
             </Link>
           </p>
         </div>
+
+        {/* About the host */}
+        <div className="bg-gray-50 rounded-2xl p-6 mb-8">
+          <h2 className="text-lg font-bold text-gray-900 mb-2">About {showConfig.hostName}</h2>
+          <p className="text-gray-600 text-sm mb-3">
+            {showConfig.host.bio}
+          </p>
+          <a
+            href={showConfig.host.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="link-accent text-sm"
+          >
+            {showConfig.host.urlAnchorText}
+          </a>
+        </div>
       </div>
 
       <SiteFooter />
