@@ -4,7 +4,10 @@ import SiteLogo from "@/components/SiteLogo";
 
 export default function SiteHeader() {
   return (
-    <header className="bg-brand-purple border-b border-brand-purple-mid">
+    <header
+      className="border-b border-brand-purple-mid"
+      style={{ backgroundColor: "var(--brand-header-bg)" }}
+    >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center gap-2">
           <SiteLogo />
