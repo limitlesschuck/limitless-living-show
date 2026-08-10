@@ -129,6 +129,7 @@ async function main() {
         config: {
           episodeCardImage: "youtube_thumbnail",
           episodeGuideEnabled: true,
+          brandColors: {},
         },
       },
     });

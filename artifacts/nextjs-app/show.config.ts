@@ -42,6 +42,9 @@ const showConfig = {
     grayText: "#374151",
     grayTextMuted: "#4B5563",
     grayMuted: "#9CA3AF",
+    headerBg: "#2D1B69",
+    adminAccent: "#F0A500",
+    adminAccentLight: "#F5C842",
   },
 
   // Cloudflare R2

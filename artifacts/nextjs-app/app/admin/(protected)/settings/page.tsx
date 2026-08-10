@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import showConfig from "@/show.config";
+import { COLOR_LABELS, type BrandColors } from "@/lib/brand";
+
+const BRAND_COLOR_KEYS = Object.keys(COLOR_LABELS) as (keyof BrandColors)[];
 
 type DataTool = "slugs" | "numbers" | "import" | null;
 
@@ -28,6 +32,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const [brandColors, setBrandColors] = useState<BrandColors>({});
+  const [brandColorsOpen, setBrandColorsOpen] = useState(false);
+  const [savingBrandColors, setSavingBrandColors] = useState(false);
+  const [brandColorsMessage, setBrandColorsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   const [dataToolsOpen, setDataToolsOpen] = useState(false);
   const [confirmTool, setConfirmTool] = useState<DataTool>(null);
   const [generatingSlugs, setGeneratingSlugs] = useState(false);
@@ -41,8 +50,39 @@ export default function SettingsPage() {
       .then((data) => {
         if (data.episodeCardImage) setEpisodeCardImage(data.episodeCardImage);
         if (data.episodeGuideEnabled !== undefined) setEpisodeGuideEnabled(data.episodeGuideEnabled);
+        if (data.brandColors) setBrandColors(data.brandColors);
       });
   }, []);
+
+  function updateBrandColor(key: keyof BrandColors, value: string) {
+    setBrandColors((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetBrandColor(key: keyof BrandColors) {
+    setBrandColors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  async function handleSaveBrandColors() {
+    setSavingBrandColors(true);
+    setBrandColorsMessage(null);
+    const res = await fetch("/api/admin/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brandColors }),
+    });
+    if (res.ok) {
+      setBrandColorsMessage({ type: "success", text: "Brand colors saved" });
+    } else {
+      const err = await res.text();
+      console.error("Save failed:", err);
+      setBrandColorsMessage({ type: "error", text: "Save failed — check console for details" });
+    }
+    setSavingBrandColors(false);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -175,6 +215,76 @@ export default function SettingsPage() {
             {saving ? "Saving..." : "Save settings"}
           </button>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 mt-6 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setBrandColorsOpen((o) => !o)}
+          className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+        >
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Brand colors</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Override individual brand colors without a redeploy
+            </p>
+          </div>
+          <span className={`text-gray-400 transition-transform ${brandColorsOpen ? "rotate-180" : ""}`}>
+            ▾
+          </span>
+        </button>
+
+        {brandColorsOpen && (
+          <div className="px-6 pb-6 border-t border-gray-100 pt-4">
+            {brandColorsMessage && (
+              <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${brandColorsMessage.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                {brandColorsMessage.text}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              {BRAND_COLOR_KEYS.map((key) => {
+                const defaultValue = showConfig.brand[key];
+                const currentValue = brandColors[key] ?? defaultValue;
+                return (
+                  <div key={key} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-b-0">
+                    <p className="flex-1 min-w-0 text-sm text-gray-700">{COLOR_LABELS[key]}</p>
+                    <input
+                      type="color"
+                      value={currentValue}
+                      onChange={(e) => updateBrandColor(key, e.target.value)}
+                      className="h-8 w-8 rounded border border-gray-200 cursor-pointer shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={brandColors[key] ?? ""}
+                      placeholder={defaultValue}
+                      onChange={(e) => updateBrandColor(key, e.target.value)}
+                      className="input w-28 text-xs shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => resetBrandColor(key)}
+                      className="text-xs text-gray-400 hover:text-gray-700 underline shrink-0"
+                    >
+                      Reset to default
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={handleSaveBrandColors}
+                disabled={savingBrandColors}
+                className="px-6 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
+              >
+                {savingBrandColors ? "Saving..." : "Save brand colors"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 mt-6 overflow-hidden">
